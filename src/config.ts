@@ -10,7 +10,7 @@ import { CONFIG_FILENAME, MAX_SUBJECT_LENGTH } from "./constants.js";
  * Environment variable COMMIT_AI_MODEL overrides model setting
  */
 const DEFAULT_CONFIG: Config = {
-  model: "claude-haiku-4.5",
+  model: "claude-3-5-haiku",
   conventionalCommit: true,
   includeScope: true,
   includeEmoji: false,
@@ -94,7 +94,7 @@ export function loadConfig(): Config {
 export function getConfigTemplate(): string {
   return JSON.stringify(
     {
-      model: "claude-haiku-4.5",
+      model: "claude-3-5-haiku",
       conventionalCommit: true,
       includeScope: true,
       includeEmoji: false,

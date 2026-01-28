@@ -58,9 +58,14 @@ let client: CopilotClient | null = null;
 export async function stopClient(): Promise<void> {
   if (client) {
     try {
-      await client.stop();
+      await Promise.race([
+        client.stop(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Stop timeout")), 1000)
+        ),
+      ]);
     } catch (error) {
-      // Ignore errors during stop
+      // Ignore errors during stop (timeout or actual error)
     } finally {
       client = null;
     }

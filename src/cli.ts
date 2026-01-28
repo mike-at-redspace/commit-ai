@@ -270,6 +270,9 @@ async function main() {
     } else {
       await handleInteraction(message.fullMessage, diff.staged, config);
     }
+
+    // Exit cleanly after completing the action
+    process.exit(0);
   } catch (error) {
     spinner.stop();
     if (error instanceof Error) {

@@ -94,7 +94,7 @@ export function loadConfig(): Config {
 export function getConfigTemplate(): string {
   return JSON.stringify(
     {
-      model: "claude-3-5-haiku",
+      model: "grok-code-fast-1",
       conventionalCommit: true,
       includeScope: true,
       includeEmoji: false,

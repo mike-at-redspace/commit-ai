@@ -52,24 +52,18 @@ CRITICAL: Output ONLY the commit message. No markdown, no explanations, no fluff
 let client: CopilotClient | null = null;
 
 /**
- * Gets or creates a singleton Copilot client instance
- * Reuses the same client across multiple generations for performance
- */
-async function getClient(): Promise<CopilotClient> {
-  if (!client) {
-    client = new CopilotClient({ logLevel: "error" });
-  }
-  return client;
-}
-
-/**
- * Stops the Copilot client and cleans up resources
+ * Stops the Copilot client if active (for final cleanup)
  * Call this before your process exits to avoid hanging connections
  */
 export async function stopClient(): Promise<void> {
   if (client) {
-    await client.stop();
-    client = null;
+    try {
+      await client.stop();
+    } catch (error) {
+      // Ignore errors during stop
+    } finally {
+      client = null;
+    }
   }
 }
 
@@ -85,8 +79,21 @@ function truncateDiff(diff: string): {
     return { content: diff, wasTruncated: false };
   }
 
+  // Truncate intelligently: try to keep complete hunks
+  const lines = diff.split("\n");
+  let truncatedLines: string[] = [];
+  let currentLength = 0;
+
+  for (const line of lines) {
+    if (currentLength + line.length + 1 > MAX_DIFF_LENGTH) {
+      break;
+    }
+    truncatedLines.push(line);
+    currentLength += line.length + 1; // +1 for newline
+  }
+
   return {
-    content: diff.substring(0, MAX_DIFF_LENGTH),
+    content: truncatedLines.join("\n"),
     wasTruncated: true,
   };
 }
@@ -105,7 +112,7 @@ function buildPrompt(
 
   if (wasTruncated) {
     prompt +=
-      "\n\n[Note: Diff was truncated due to size. Focus on the visible changes.]";
+      "\n\n[Note: Diff was truncated due to size. Focus on the visible changes and infer overall intent.]";
   }
 
   if (context?.recentCommits?.length) {
@@ -113,14 +120,14 @@ function buildPrompt(
   }
 
   if (context?.branch) {
-    prompt += `\n\nCurrent branch: ${context.branch}`;
+    prompt += `\n\nCurrent branch: ${context.branch} (use this to infer scope or type if relevant)`;
   }
 
   const configInstructions: string[] = [];
 
   if (!config.conventionalCommit) {
     configInstructions.push(
-      "Do NOT use conventional commit prefixes (feat:, fix:, etc.)",
+      "Do NOT use conventional commit prefixes (feat:, fix:, etc.) - use plain descriptive subjects",
     );
   }
   if (!config.includeScope) {
@@ -129,7 +136,9 @@ function buildPrompt(
   if (config.verbosity === "minimal") {
     configInstructions.push("Keep it very brief - subject line only, no body");
   } else if (config.verbosity === "detailed") {
-    configInstructions.push("Include a detailed body explaining the changes");
+    configInstructions.push(
+      "Include a detailed body explaining the changes, rationale, and impact",
+    );
   }
 
   if (configInstructions.length) {
@@ -142,6 +151,7 @@ function buildPrompt(
 /**
  * Parses raw AI output into structured commit message
  * Handles emoji injection, scope formatting, and length limits
+ * Respects config for conventional commits and features
  */
 function parseCommitMessage(raw: string, config: Config): GeneratedMessage {
   const cleaned = raw
@@ -150,30 +160,39 @@ function parseCommitMessage(raw: string, config: Config): GeneratedMessage {
     .trim();
 
   const lines = cleaned.split("\n").filter((line) => line.trim());
-  let subject = lines[0] || "chore: update code";
+  let subject = lines[0] || "";
   const bodyLines = lines.slice(1).filter((line) => line.trim());
   const body = bodyLines.length > 0 ? bodyLines.join("\n") : undefined;
+
+  if (!subject) {
+    throw new Error("Generated commit message is empty");
+  }
 
   const conventionalMatch = subject.match(/^(\w+)(?:\(([^)]+)\))?:\s*(.+)$/);
   let type = "chore";
   let scope: string | undefined;
+  let description = subject;
 
   if (conventionalMatch) {
     type = conventionalMatch[1];
     scope = conventionalMatch[2];
-    const description = conventionalMatch[3];
+    description = conventionalMatch[3];
+  }
 
+  if (config.conventionalCommit) {
+    subject = type;
     if (config.includeEmoji && EMOJI_MAP[type]) {
-      subject = `${EMOJI_MAP[type]} ${type}`;
-    } else {
-      subject = type;
+      subject = `${EMOJI_MAP[type]} ${subject}`;
     }
-
     if (config.includeScope && scope) {
       subject += `(${scope})`;
     }
-
     subject += `: ${description}`;
+  } else {
+    // For non-conventional, use as-is, optionally add default emoji if configured
+    if (config.includeEmoji) {
+      subject = `${EMOJI_MAP.chore} ${subject}`; // Default to chore emoji
+    }
   }
 
   if (subject.length > config.maxSubjectLength) {
@@ -194,31 +213,49 @@ function parseCommitMessage(raw: string, config: Config): GeneratedMessage {
  *
  * Pro tip: The more context you provide (recent commits, clear branch names),
  * the better the AI performs. "feat/user-auth" gives better results than "asdf".
+ *
+ * Uses a shared client instance for efficiency across multiple generations
+ * (e.g., during regenerates), but creates fresh sessions each time.
  */
 export async function generateCommitMessage(
   diff: string,
   config: Config,
   context?: CommitContext,
 ): Promise<GeneratedMessage> {
-  const copilot = await getClient();
+  if (!client) {
+    client = new CopilotClient({ logLevel: "error" });
+  }
+
   const prompt = buildPrompt(diff, config, context);
 
-  const session = await copilot.createSession({
-    model: config.model,
-    systemMessage: {
-      mode: "replace",
-      content: SYSTEM_PROMPT,
-    },
-  });
-
+  let session;
   try {
+    session = await client.createSession({
+      model: config.model,
+      systemMessage: {
+        mode: "replace",
+        content: SYSTEM_PROMPT,
+      },
+    });
+
     const response = await session.sendAndWait(
       { prompt },
       COPILOT_SESSION_TIMEOUT,
     );
-    const rawMessage = response?.data?.content?.trim() || "";
+
+    const rawMessage = response?.data?.content?.trim();
+    if (!rawMessage) {
+      throw new Error("No response received from Copilot");
+    }
+
     return parseCommitMessage(rawMessage, config);
+  } catch (error) {
+    throw new Error(
+      `Failed to generate commit message: ${(error as Error).message}`,
+    );
   } finally {
-    await session.destroy();
+    if (session) {
+      await session.destroy();
+    }
   }
 }

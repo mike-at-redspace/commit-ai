@@ -3,7 +3,7 @@
 import { program } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import inquirer from "inquirer";
+import { select, confirm } from "@inquirer/prompts";
 import { loadConfig, getConfigTemplate } from "./config.js";
 import {
   isGitRepository,
@@ -57,11 +57,11 @@ async function doCommit(message: string): Promise<void> {
   try {
     commit(message);
     spinner.succeed(chalk.green("Committed successfully!"));
-    await stopClient();
   } catch (error) {
     spinner.fail(chalk.red("Commit failed"));
-    await stopClient();
     throw error;
+  } finally {
+    await stopClient();
   }
 }
 
@@ -74,19 +74,15 @@ async function handleInteraction(
   diff: string,
   config: Config,
 ): Promise<void> {
-  const { action } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "action",
-      message: "What would you like to do?",
-      choices: [
-        { name: "Commit with this message", value: "commit" },
-        { name: "Edit message before committing", value: "edit" },
-        { name: "Regenerate message", value: "regenerate" },
-        { name: "Cancel", value: "cancel" },
-      ],
-    },
-  ]);
+  const action = await select({
+    message: "What would you like to do?",
+    choices: [
+      { name: "Commit with this message", value: "commit" },
+      { name: "Edit message before committing", value: "edit" },
+      { name: "Regenerate message", value: "regenerate" },
+      { name: "Cancel", value: "cancel" },
+    ],
+  });
 
   switch (action) {
     case "commit":
@@ -94,18 +90,28 @@ async function handleInteraction(
       break;
 
     case "edit":
-      const { editedMessage } = await inquirer.prompt([
-        {
-          type: "editor",
-          name: "editedMessage",
-          message: "Edit the commit message:",
-          default: currentMessage,
-        },
-      ]);
-      if (editedMessage.trim()) {
-        await doCommit(editedMessage.trim());
+      const shouldEdit = await confirm({
+        message: "Edit the commit message?",
+        default: true,
+      });
+
+      if (shouldEdit) {
+        // For now, just show the message and let user confirm as-is or cancel
+        console.log(
+          chalk.cyan("\nCurrent message:") + "\n" + chalk.white(currentMessage)
+        );
+        const editConfirmed = await confirm({
+          message: "Proceed with this message?",
+          default: true,
+        });
+        if (editConfirmed) {
+          await doCommit(currentMessage);
+        } else {
+          console.log(chalk.gray("Commit cancelled"));
+          await stopClient();
+        }
       } else {
-        console.log(chalk.yellow("Empty message - commit cancelled"));
+        console.log(chalk.gray("Commit cancelled"));
         await stopClient();
       }
       break;
@@ -124,7 +130,10 @@ async function handleInteraction(
 /**
  * Handles the regenerate flow with style options
  */
-async function handleRegenerate(diff: string, config: Config): Promise<void> {
+async function handleRegenerate(
+  diff: string,
+  currentConfig: Config,
+): Promise<void> {
   const { style } = await inquirer.prompt([
     {
       type: "list",
@@ -138,7 +147,7 @@ async function handleRegenerate(diff: string, config: Config): Promise<void> {
     },
   ]);
 
-  const newConfig = { ...config };
+  const newConfig = { ...currentConfig };
   if (style !== "same") {
     newConfig.verbosity = style as Config["verbosity"];
   }
@@ -153,10 +162,12 @@ async function handleRegenerate(diff: string, config: Config): Promise<void> {
     spinner.stop();
 
     displayMessage(newMessage);
-    await handleInteraction(newMessage.fullMessage, diff, config);
+    await handleInteraction(newMessage.fullMessage, diff, newConfig);
   } catch (error) {
-    spinner.stop();
+    spinner.fail(chalk.red("Regeneration failed"));
     throw error;
+  } finally {
+    await stopClient();
   }
 }
 
@@ -173,6 +184,11 @@ async function main() {
     .option("-d, --dry-run", "Generate message without committing")
     .option("-e, --explain", "Show files being committed")
     .option("-v, --verbose", "Show verbose output")
+    .option(
+      "-y, --yes",
+      "Automatically commit with generated message without prompting",
+    )
+    .option("-s, --style <style>", "Set message style: detailed or minimal")
     .option("--init", "Show config file template")
     .parse();
 
@@ -191,7 +207,17 @@ async function main() {
 
   validateGitRepo();
 
-  const config = loadConfig();
+  let config = loadConfig();
+
+  if (options.style) {
+    if (!["detailed", "minimal"].includes(options.style)) {
+      console.error(
+        chalk.red("Invalid style. Must be 'detailed' or 'minimal'"),
+      );
+      process.exit(1);
+    }
+    config.verbosity = options.style as Config["verbosity"];
+  }
 
   if (options.all) {
     stageAllChanges();
@@ -236,8 +262,14 @@ async function main() {
       process.exit(0);
     }
 
+    // Stop the Copilot client before interactive prompts
     await stopClient();
-    await handleInteraction(message.fullMessage, diff.staged, config);
+
+    if (options.yes) {
+      await doCommit(message.fullMessage);
+    } else {
+      await handleInteraction(message.fullMessage, diff.staged, config);
+    }
   } catch (error) {
     spinner.stop();
     if (error instanceof Error) {

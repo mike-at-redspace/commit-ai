@@ -236,6 +236,7 @@ async function main() {
       process.exit(0);
     }
 
+    await stopClient();
     await handleInteraction(message.fullMessage, diff.staged, config);
   } catch (error) {
     spinner.stop();

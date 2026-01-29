@@ -127,6 +127,29 @@ Diff processing pipeline:
 3. **Prioritize & truncate** — Keep high-priority files, summarize or drop low-priority
 4. **Always include** — `git diff --stat` summary
 
+## Proposed approach (Gemini-style summarizer, commit-focused) WIP
+
+**Three-tier flow:**
+
+1. **Small diff** (length ≤ effective limit): Skip smart diff and summarization — use raw diff as-is in the prompt.
+2. **Large diff** (length > effective limit): Run smart diff (sanitize, collapse, truncate). If the result was **not** truncated, use the smart-diff content.
+3. **Smart diff still large** (i.e. `getSmartDiff` returned `wasTruncated: true`): Run a **single LLM summarization** on the full prepared diff (sanitize + collapse, no truncation), then use that summary in the prompt. No second model or new dependency—reuse the same Copilot client.
+
+```mermaid
+flowchart LR
+  A[Raw diff] --> B{diff length <= limit?}
+  B -->|yes| C[Use raw diff as-is]
+  B -->|no| D[getSmartDiff]
+  D --> E{wasTruncated?}
+  E -->|no| F[Use smart-diff content]
+  E -->|yes| G[Summarizer LLM on full prepared diff]
+  G --> H[Use summary]
+  C --> I[Build prompt]
+  F --> I
+  H --> I
+  I --> J[Generate commit message]
+```
+
 **Recommended limits:**
 
 - Default model: 12K–16K tokens (~40K–56K chars)

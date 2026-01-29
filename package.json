@@ -16,6 +16,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "prepare": "husky",
     "postinstall": "pnpm run build"
   },
   "keywords": [
@@ -43,6 +44,9 @@
     "@types/node": "^25.0.0",
     "@types/react": "^18.3.0",
     "eslint": "^9.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
     "prettier": "^3.4.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0",
@@ -52,5 +56,18 @@
   },
   "engines": {
     "node": ">=25.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{js,jsx,mjs,cjs}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }

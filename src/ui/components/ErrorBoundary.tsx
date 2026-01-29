@@ -30,6 +30,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <Box flexDirection="column" padding={1}>
           <Text color="red">Something went wrong: {this.state.error.message}</Text>
+          <Box marginTop={1}>
+            <Text color="gray">Press q to exit</Text>
+          </Box>
         </Box>
       );
     }

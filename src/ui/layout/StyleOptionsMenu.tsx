@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
 import type { RegenerateStyle } from "@core/config";
 import { STYLES } from "@core/config";
+import { SelectItem } from "./SelectItem";
 
 interface StyleOptionsMenuProps {
   onSelect: (style: RegenerateStyle) => void;
@@ -17,7 +18,14 @@ export function StyleOptionsMenu({ onSelect }: StyleOptionsMenuProps) {
     <Box flexDirection="column" paddingX={1} marginTop={1}>
       <Text color="cyan">? Regenerate with different style?</Text>
       <Box marginTop={1}>
-        <SelectInput items={STYLES} onSelect={(item) => onSelect(item.value)} />
+        <SelectInput
+          items={STYLES}
+          itemComponent={SelectItem}
+          onSelect={(item) => onSelect(item.value)}
+        />
+      </Box>
+      <Box marginTop={1}>
+        <Text color="gray">↑/↓ to choose, Enter to select</Text>
       </Box>
     </Box>
   );

@@ -10,10 +10,17 @@ import {
   InstructionInput,
 } from "@ui/layout";
 import { useRunOnceOnMount } from "@ui/hooks/useRunOnceOnMount";
+import { useTerminalSize } from "@ui/hooks/useTerminalSize";
 import type { Config, Action, RegenerateStyle, GenerateProgressPhase } from "@core/config";
 import { runGenerateMessage } from "@core/ai";
 import { commit } from "@core/git";
-import { DEFAULT_PREMIUM_MODEL, STATUS_CANCELLED, STATUS_COMMITTING } from "@core/config";
+import {
+  DEFAULT_PREMIUM_MODEL,
+  MIN_TERMINAL_COLUMNS,
+  MIN_TERMINAL_ROWS,
+  STATUS_CANCELLED,
+  STATUS_COMMITTING,
+} from "@core/config";
 import { useCommitContext } from "@ui/context/CommitContext";
 
 interface DashboardProps {
@@ -65,6 +72,10 @@ export function Dashboard({
   const [customInstruction, setCustomInstruction] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const generationKey = useRef(0);
+  const { columns, rows } = useTerminalSize();
+  const terminalTooSmall = columns < MIN_TERMINAL_COLUMNS || rows < MIN_TERMINAL_ROWS;
+  const contentWidth = Math.max(columns - 4, 1);
+  const contentHeight = Math.max(rows - 2, 1);
 
   useEffect(() => {
     return () => {
@@ -217,11 +228,27 @@ export function Dashboard({
   if (viewState === "committing") progressStatus = STATUS_COMMITTING;
   else if (viewState === "cancelled") progressStatus = STATUS_CANCELLED;
 
+  if (terminalTooSmall) {
+    return (
+      <Box flexDirection="column" padding={1}>
+        <Text color="yellow">
+          Terminal too small. Please resize to at least {MIN_TERMINAL_COLUMNS}×{MIN_TERMINAL_ROWS}.
+        </Text>
+        <Text color="gray">Press q to exit.</Text>
+      </Box>
+    );
+  }
+
   return (
     <Box borderStyle="round" borderColor="green" padding={1} flexDirection="column">
-      <Header branch={context.branch || "unknown"} version={version} />
-      <InfoPanel files={files} showFiles={showFiles} />
-      <ContentCard message={message} isStreaming={isGenerating && phase === "streaming"} />
+      <Header branch={context.branch || "unknown"} version={version} maxWidth={contentWidth} />
+      <InfoPanel files={files} showFiles={showFiles} maxWidth={contentWidth} />
+      <ContentCard
+        message={message}
+        isStreaming={isGenerating && phase === "streaming"}
+        maxWidth={contentWidth}
+        maxHeight={contentHeight}
+      />
       <ProgressBar
         phase={isGenerating ? phase : undefined}
         isGenerating={isGenerating}
@@ -232,6 +259,7 @@ export function Dashboard({
             ? "Diff was truncated. For better results, try 'Retry with premium model'."
             : undefined
         }
+        maxWidth={contentWidth}
       />
       {showStyleMenu && <StyleOptionsMenu onSelect={handleStyleSelect} />}
       {showCustomInput && (

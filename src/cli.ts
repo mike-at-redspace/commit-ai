@@ -15,7 +15,13 @@ import {
 } from "@core/git";
 import { CommitGenerator, getEffectiveDiffLimit, runGenerateMessage } from "@core/ai";
 import type { Config, CommitContext, GenerateProgressPhase } from "@core/config";
-import { PROGRESS_STEP_LABELS, VERSION, INITIAL_PROGRESS_PHASE } from "@core/config";
+import {
+  PROGRESS_STEP_LABELS,
+  VERSION,
+  INITIAL_PROGRESS_PHASE,
+  MIN_TERMINAL_COLUMNS,
+  MIN_TERMINAL_ROWS,
+} from "@core/config";
 
 /** Options from commander (subset we use for overrides and flow). */
 interface CliOptions {
@@ -317,6 +323,16 @@ async function main(): Promise<void> {
         process.exit(1);
       }
     } else {
+      const cols = process.stdout.columns ?? 0;
+      const terminalRows = process.stdout.rows ?? 0;
+      if (cols < MIN_TERMINAL_COLUMNS || terminalRows < MIN_TERMINAL_ROWS) {
+        console.error(
+          chalk.yellow(
+            `Terminal too small. Please resize to at least ${MIN_TERMINAL_COLUMNS}×${MIN_TERMINAL_ROWS}.`
+          )
+        );
+        process.exit(1);
+      }
       try {
         const { render } = await import("ink");
         const React = (await import("react")).default;

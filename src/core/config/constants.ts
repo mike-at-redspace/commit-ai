@@ -125,6 +125,16 @@ export const ACTIONS: { label: string; value: Action }[] = [
 ];
 
 /**
+ * Minimum terminal columns for TUI (startup guard and runtime overlay)
+ */
+export const MIN_TERMINAL_COLUMNS = 60;
+
+/**
+ * Minimum terminal rows for TUI (startup guard and runtime overlay)
+ */
+export const MIN_TERMINAL_ROWS = 20;
+
+/**
  * Regenerate-style options (label and value)
  */
 export const STYLES: { label: string; value: RegenerateStyle }[] = [

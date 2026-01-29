@@ -32,7 +32,7 @@ export function InstructionInput({ onSubmit, onCancel }: InstructionInputProps) 
         />
       </Box>
       <Box marginTop={1}>
-        <Text color="gray">Press Enter to submit, Ctrl+C to cancel</Text>
+        <Text color="gray">Enter to submit, empty line to cancel</Text>
       </Box>
     </Box>
   );

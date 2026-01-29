@@ -1,5 +1,6 @@
 import type { Config, CommitContext } from "./types.js";
 import { MAX_DIFF_LENGTH } from "./constants.js";
+import { getSmartDiff } from "./smartDiff.js";
 
 /**
  * System prompt that guides the AI to write killer commit messages
@@ -43,62 +44,6 @@ When the user message includes "[Note: Diff was truncated]" or similar: the visi
 /** Approximate chars per token for code (conservative) */
 const CHARS_PER_TOKEN = 3.5;
 
-const LOCKFILE_NAMES = new Set([
-  "package-lock.json",
-  "yarn.lock",
-  "pnpm-lock.yaml",
-  "bun.lockb",
-  "Cargo.lock",
-  "go.sum",
-]);
-const DEPRIORITIZED_DIRS = ["dist/", "build/", ".cache/", "out/", "coverage/"];
-const PREFERRED_EXTENSIONS = new Set([
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".py",
-  ".go",
-  ".rs",
-  ".java",
-  ".kt",
-]);
-
-/**
- * Numeric priority for file-aware diff truncation: 0 = lockfiles/deprioritized dirs, 1 = other, 2 = preferred (source files, package.json, etc.).
- * @param path - File path (e.g. "src/foo.ts" or "package.json")
- * @returns Priority 0, 1, or 2
- */
-function pathPriority(path: string): number {
-  const base = path.split("/").pop() ?? path;
-  if (LOCKFILE_NAMES.has(base)) return 0;
-  const lower = path.toLowerCase();
-  if (DEPRIORITIZED_DIRS.some((d) => lower.startsWith(d))) return 0;
-  if (base === "package.json" || base === "Cargo.toml" || base === "go.mod") return 2;
-  const ext = base.includes(".") ? base.slice(base.lastIndexOf(".")) : "";
-  if (PREFERRED_EXTENSIONS.has(ext)) return 2;
-  return 1;
-}
-
-/**
- * Splits a raw git diff into one chunk per file (each chunk starts with "diff --git ").
- * @param diff - Raw git diff string
- * @returns Array of { path, chunk } for each file
- */
-function splitDiffIntoFileChunks(diff: string): { path: string; chunk: string }[] {
-  const parts = diff.split(/(?=^diff --git )/m).filter(Boolean);
-  const chunks: { path: string; chunk: string }[] = [];
-  for (const chunk of parts) {
-    const match = chunk.match(/^diff --git a\/(.+?) b\//m);
-    const path = match ? match[1] : "unknown";
-    chunks.push({ path, chunk });
-  }
-  if (chunks.length === 0 && diff.trim()) {
-    chunks.push({ path: "unknown", chunk: diff });
-  }
-  return chunks;
-}
-
 /**
  * Effective diff length limit in characters (min of maxDiffLength and token-based limit).
  * @param config - Config with maxDiffLength and optional maxDiffTokens
@@ -115,84 +60,9 @@ export function getEffectiveDiffLimit(config: Config): number {
 }
 
 /**
- * Truncates large diffs to avoid hitting token limits.
- * When over limit, uses file-aware truncation: keeps higher-priority files
- * (e.g. source code, package.json) and omits or tail-truncates lower-priority
- * files (lockfiles, dist/, build/).
- * @param diff - Raw git diff string
- * @param effectiveLimit - Max character length
- * @returns Object with content and wasTruncated
- */
-function truncateDiff(
-  diff: string,
-  effectiveLimit: number
-): {
-  content: string;
-  wasTruncated: boolean;
-} {
-  if (diff.length <= effectiveLimit) {
-    return { content: diff, wasTruncated: false };
-  }
-
-  const fileChunks = splitDiffIntoFileChunks(diff);
-  if (fileChunks.length <= 1) {
-    const lines = diff.split("\n");
-    const truncatedLines: string[] = [];
-    let currentLength = 0;
-    for (const line of lines) {
-      if (currentLength + line.length + 1 > effectiveLimit) break;
-      truncatedLines.push(line);
-      currentLength += line.length + 1;
-    }
-    return {
-      content: truncatedLines.join("\n"),
-      wasTruncated: true,
-    };
-  }
-
-  const sorted = [...fileChunks].sort(
-    (a, b) =>
-      pathPriority(b.path) - pathPriority(a.path) || fileChunks.indexOf(a) - fileChunks.indexOf(b)
-  );
-  const result: string[] = [];
-  let currentLength = 0;
-
-  for (const { path, chunk } of sorted) {
-    const chunkLen = chunk.length + (result.length ? 1 : 0);
-    if (currentLength + chunkLen <= effectiveLimit) {
-      result.push(chunk);
-      currentLength += chunkLen;
-    } else if (currentLength < effectiveLimit && pathPriority(path) >= 1) {
-      const budget = effectiveLimit - currentLength - (result.length ? 1 : 0) - 50;
-      if (budget > 100) {
-        const lines = chunk.split("\n");
-        let tailLength = 0;
-        const tailLines: string[] = [];
-        for (let i = lines.length - 1; i >= 0; i--) {
-          const line = lines[i];
-          if (tailLength + line.length + 1 > budget) break;
-          tailLines.unshift(line);
-          tailLength += line.length + 1;
-        }
-        const truncatedChunk = lines[0] + "\n...[truncated]...\n" + tailLines.join("\n");
-        result.push(truncatedChunk);
-        currentLength += truncatedChunk.length + (result.length > 1 ? 1 : 0);
-      }
-      break;
-    }
-  }
-
-  const content = result.join("\n");
-  return {
-    content: content || diff.slice(0, effectiveLimit),
-    wasTruncated: true,
-  };
-}
-
-/**
  * Builds the user prompt with diff, context, and config-specific instructions.
  * When stat is provided, it is prepended so the model sees a high-level summary of changed files.
- * @param diff - Staged diff (may be truncated by getEffectiveDiffLimit/truncateDiff)
+ * @param diff - Staged diff (may be truncated by getSmartDiff)
  * @param config - Generation config (verbosity, conventional, scope, etc.)
  * @param context - Optional recent commits and branch
  * @param customInstruction - Optional user instruction for regeneration
@@ -207,7 +77,7 @@ export function buildUserPrompt(
   stat?: string
 ): string {
   const effectiveLimit = getEffectiveDiffLimit(config);
-  const { content, wasTruncated } = truncateDiff(diff, effectiveLimit);
+  const { content, wasTruncated } = getSmartDiff(diff, stat, config, effectiveLimit);
 
   let prompt = "";
   if (stat) {

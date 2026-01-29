@@ -138,6 +138,11 @@ async function main(): Promise<void> {
     .option("-v, --verbose", "Show verbose output")
     .option("-y, --yes", "Automatically commit with generated message without prompting")
     .option("-s, --style <style>", "Set message style: detailed or minimal")
+    .option(
+      "--elevation-threshold <n>",
+      "Elevate low-priority files when fraction of changed lines in them exceeds this (0–1, default 0.8)"
+    )
+    .option("--no-import-collapse", "Disable collapsing of import lines in diffs")
     .option("--init", "Show config file template")
     .parse();
 
@@ -160,6 +165,18 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     config.verbosity = options.style as Config["verbosity"];
+  }
+
+  if (options.elevationThreshold !== undefined) {
+    const n = Number(options.elevationThreshold);
+    if (Number.isNaN(n) || n < 0 || n > 1) {
+      console.error(chalk.red("Invalid elevation-threshold. Must be a number between 0 and 1."));
+      process.exit(1);
+    }
+    config.elevationThreshold = n;
+  }
+  if (options.importCollapse === false) {
+    config.importCollapse = false;
   }
 
   if (options.all) {

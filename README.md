@@ -51,15 +51,17 @@ When you pick **Regenerate**, you get:
 
 ### Flags
 
-| Flag                              | Description                              |
-| --------------------------------- | ---------------------------------------- |
-| `-a, --all`                       | Stage all changes, then generate         |
-| `-d, --dry-run`                   | Generate message only, no commit         |
-| `-e, --explain`                   | List files being committed               |
-| `-v, --verbose`                   | Extra debug output                       |
-| `-y, --yes`                       | Commit with generated message, no prompt |
-| `-s, --style <detailed\|minimal>` | Override message style                   |
-| `--init`                          | Print config template                    |
+| Flag                              | Description                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `-a, --all`                       | Stage all changes, then generate                                                                  |
+| `-d, --dry-run`                   | Generate message only, no commit                                                                  |
+| `-e, --explain`                   | List files being committed                                                                        |
+| `-v, --verbose`                   | Extra debug output                                                                                |
+| `-y, --yes`                       | Commit with generated message, no prompt                                                          |
+| `-s, --style <detailed\|minimal>` | Override message style                                                                            |
+| `--elevation-threshold <n>`       | Elevate low-priority files when fraction of changed lines in them exceeds this (0–1; default 0.8) |
+| `--no-import-collapse`            | Disable collapsing of import lines in diffs                                                       |
+| `--init`                          | Print config template                                                                             |
 
 Non-interactive (`-y` or `-d`) skips the Ink UI and prints the message to stdout.
 
@@ -78,12 +80,15 @@ Put `.commit-ai.json` in your project root or home dir:
   "verbosity": "normal",
   "maxDiffLength": 8000,
   "ignoreWhitespaceInDiff": false,
-  "preferPremiumForLargeDiffs": false
+  "preferPremiumForLargeDiffs": false,
+  "elevationThreshold": 0.8,
+  "elevationMinLines": 0,
+  "importCollapse": true
 }
 ```
 
 | Option                       | Default            | Description                                                                                                                                                                                                                                         |
-| ---------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ---------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `model`                      | `grok-code-fast-1` | Copilot model used for generation. Overridden by `COMMIT_AI_MODEL` (see below).                                                                                                                                                                     |
 | `premiumModel`               | `sonnet-3.5`       | Model used when you choose “Retry with premium model” in the UI. Not affected by `COMMIT_AI_MODEL`.                                                                                                                                                 |
 | `conventionalCommit`         | `true`             | Use `feat:`, `fix:`, etc.                                                                                                                                                                                                                           |
@@ -95,6 +100,10 @@ Put `.commit-ai.json` in your project root or home dir:
 | `maxDiffTokens`              | _(unset)_          | Optional. Max diff size in **tokens** (approximated from chars). When set, the effective limit is the smaller of `maxDiffLength` and this token budget. Useful to stay within model context (e.g. 12000–16000 for default model, more for premium). |
 | `ignoreWhitespaceInDiff`     | `false`            | When `true`, run `git diff --staged -w` so whitespace-only changes are ignored in the prompt.                                                                                                                                                       |
 | `preferPremiumForLargeDiffs` | `false`            | When `true`, use the premium model for the **first** generation when the diff exceeds the limit (truncated). The UI still suggests "Retry with premium model" when truncated.                                                                       |
+| `elevationThreshold`         | `0.8`              | When the fraction of changed lines in low-priority files (e.g. data JSON, lockfiles) exceeds this, those files are elevated so they are fully or summarily included instead of dropped.                                                             |
+| `elevationMinLines`          | _(unset)_          | Optional. Only consider elevation when total changed lines across all files is at least this (e.g. 50).                                                                                                                                             |
+| `languageImportPatterns`     | _(built-in)_       | Optional. Map of language id to regex string for import detection (e.g. `{"python": "^(import \\                                                                                                                                                    | from .+ import )", "rust": "^use \\s+"}`). Used for import collapsing; defaults cover JS/TS, Python, Rust, Go. |
+| `importCollapse`             | `true`             | When `true`, consecutive import lines in each file’s diff are collapsed to a single placeholder (e.g. “… 3 import lines …”) to save tokens. Set to `false` or use `--no-import-collapse` to disable.                                                |
 
 **Environment variable**
 
@@ -104,7 +113,9 @@ Put `.commit-ai.json` in your project root or home dir:
 
 If your staged diff is very large:
 
-- **Truncation:** Diffs over `maxDiffLength` (or the token budget from `maxDiffTokens`) are truncated. The tool uses **smart truncation**: it keeps higher-priority files (e.g. source code, `package.json`) and omits or shortens lower-priority ones (lockfiles, `dist/`, `build/`). A **summary** from `git diff --staged --stat` is always sent so the model sees which files changed and how many lines.
+- **Smart diff pipeline:** Before truncation, the tool (1) **sanitizes** the diff by stripping merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`), (2) optionally **collapses** consecutive import lines per file (language-aware: JS/TS, Python, Rust, Go) into a short placeholder to save tokens, and (3) **truncates** with file-aware priority. The token budget from `maxDiffLength` / `maxDiffTokens` applies to the result of this pipeline.
+- **Dynamic priority elevation:** If most of the changed lines are in normally low-priority files (e.g. a single large JSON data file), those files are **elevated** so they are fully or summarily included instead of dropped. Configure with `elevationThreshold` (default 0.8) and optionally `elevationMinLines`.
+- **Truncation:** When over the effective limit, the tool keeps higher-priority (and elevated) files and omits or shortens others. A **summary** from `git diff --staged --stat` is always sent so the model sees which files changed and how many lines.
 - **UI:** When the diff was truncated, the dashboard shows: _"Diff was truncated. For better results, try 'Retry with premium model'."_ You can enable `preferPremiumForLargeDiffs` so the first run automatically uses the premium model when the diff is over the limit.
 - **Suggested limits:** For the default Copilot model (~32–64K context), a diff budget of ~12K–16K tokens (or ~40K–56K characters with `maxDiffLength`) is reasonable. For premium models with larger context, you can set `maxDiffLength` higher (e.g. 80000) or `maxDiffTokens` (e.g. 50000).
 

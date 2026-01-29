@@ -71,6 +71,19 @@ function validateConfig(config: Partial<Config>): string[] {
     warnings.push("maxDiffTokens should be between 0 and 500000");
   }
 
+  if (
+    config.elevationThreshold !== undefined &&
+    (config.elevationThreshold < 0 || config.elevationThreshold > 1)
+  ) {
+    warnings.push("elevationThreshold should be between 0 and 1");
+  }
+  if (
+    config.elevationMinLines !== undefined &&
+    (config.elevationMinLines < 0 || !Number.isInteger(config.elevationMinLines))
+  ) {
+    warnings.push("elevationMinLines should be a non-negative integer");
+  }
+
   return warnings;
 }
 
@@ -125,6 +138,9 @@ export function getConfigTemplate(): string {
       maxDiffLength: MAX_DIFF_LENGTH,
       ignoreWhitespaceInDiff: false,
       preferPremiumForLargeDiffs: false,
+      elevationThreshold: 0.8,
+      elevationMinLines: 0,
+      importCollapse: true,
     },
     null,
     2

@@ -36,6 +36,14 @@ export interface Config {
   ignoreWhitespaceInDiff?: boolean;
   /** When true, use premium model for first generation when diff is truncated or over limit */
   preferPremiumForLargeDiffs?: boolean;
+  /** Elevate low-priority files when this fraction of changed lines is in tier 0–1 (default 0.8) */
+  elevationThreshold?: number;
+  /** Only consider elevation when total changed lines is at least this (optional) */
+  elevationMinLines?: number;
+  /** Optional map of language id to import-detection regex string (e.g. python, rust, go) */
+  languageImportPatterns?: Record<string, string>;
+  /** When true (default), collapse consecutive import lines in diffs to save tokens */
+  importCollapse?: boolean;
 }
 
 /**

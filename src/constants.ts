@@ -1,3 +1,5 @@
+import pkg from "../package.json" with { type: "json" };
+
 /**
  * Maximum buffer size for git diff operations (10MB)
  */
@@ -24,6 +26,11 @@ export const COPILOT_SESSION_TIMEOUT = 60000;
 export const MAX_SUBJECT_LENGTH = 72;
 
 /**
+ * CLI and UI version (from package.json)
+ */
+export const VERSION = pkg.version;
+
+/**
  * Name of the configuration file
  */
 export const CONFIG_FILENAME = ".commit-ai.json";
@@ -43,3 +50,61 @@ export const EMOJI_MAP: Record<string, string> = {
   ci: "👷",
   build: "📦",
 };
+
+/**
+ * ASCII art logo lines for the CLI header
+ */
+export const LOGO_LINES = [
+  "┌-┐┌-┐┌┬┐┌┬┐┬┌┬┐  ┌-┐┬",
+  "|  | |||||||| |---├-┤|",
+  "└-┘└-┘┴ ┴┴ ┴┴ ┴   ┴ ┴┴",
+];
+
+/**
+ * Interval in ms between header logo color animation frames
+ */
+export const LOGO_ANIMATION_INTERVAL_MS = 280;
+
+/**
+ * Colors cycled through for the animated header logo
+ */
+export const LOGO_ANIMATION_COLORS = ["green", "cyan", "blue", "magenta", "yellow"] as const;
+
+/**
+ * Spinner labels shown during each Copilot generation phase
+ */
+export const PROGRESS_SPINNER_LABELS: Record<string, string> = {
+  session: "Creating Copilot session...",
+  sending: "Sending diff to Copilot...",
+  streaming: "Generating message...",
+};
+
+/**
+ * User-facing labels for "Stopped after X" error context in CLI
+ */
+export const PROGRESS_STEP_LABELS: Record<string, string> = {
+  connecting: "connecting to Copilot",
+  session: "creating Copilot session",
+  sending: "sending diff",
+  streaming: "generating message",
+};
+
+/**
+ * Default Copilot model name (overridable via config or COMMIT_AI_MODEL)
+ */
+export const DEFAULT_COPILOT_MODEL = "grok-code-fast-1";
+
+/**
+ * Default premium model for "Retry with premium model" (overridable via config)
+ */
+export const DEFAULT_PREMIUM_MODEL = "sonnet-3.5";
+
+/**
+ * Status text shown while committing
+ */
+export const STATUS_COMMITTING = "Committing...";
+
+/**
+ * Status text shown when user cancels
+ */
+export const STATUS_CANCELLED = "Cancelled";

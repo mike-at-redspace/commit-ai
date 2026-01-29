@@ -11,6 +11,7 @@ export interface GitDiff {
  */
 export interface Config {
   model: string;
+  premiumModel?: string;
   conventionalCommit: boolean;
   includeScope: boolean;
   includeEmoji: boolean;
@@ -35,17 +36,4 @@ export interface GeneratedMessage {
 export interface CommitContext {
   recentCommits?: string[];
   branch?: string;
-}
-
-/**
- * Custom error for git-related failures
- */
-export class GitError extends Error {
-  constructor(
-    message: string,
-    public command?: string,
-  ) {
-    super(message);
-    this.name = "GitError";
-  }
 }

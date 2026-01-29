@@ -2,7 +2,12 @@ import { readFileSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import type { Config } from "./types.js";
-import { CONFIG_FILENAME, MAX_SUBJECT_LENGTH } from "./constants.js";
+import {
+  CONFIG_FILENAME,
+  DEFAULT_COPILOT_MODEL,
+  DEFAULT_PREMIUM_MODEL,
+  MAX_SUBJECT_LENGTH,
+} from "./constants.js";
 
 /**
  * Default configuration values
@@ -10,7 +15,8 @@ import { CONFIG_FILENAME, MAX_SUBJECT_LENGTH } from "./constants.js";
  * Environment variable COMMIT_AI_MODEL overrides model setting
  */
 const DEFAULT_CONFIG: Config = {
-  model: "claude-3-5-haiku",
+  model: DEFAULT_COPILOT_MODEL,
+  premiumModel: DEFAULT_PREMIUM_MODEL,
   conventionalCommit: true,
   includeScope: true,
   includeEmoji: false,
@@ -23,10 +29,7 @@ const DEFAULT_CONFIG: Config = {
  * Priority: project root > home directory > none
  */
 function resolveConfigPath(): string | null {
-  const paths = [
-    join(process.cwd(), CONFIG_FILENAME),
-    join(homedir(), CONFIG_FILENAME),
-  ];
+  const paths = [join(process.cwd(), CONFIG_FILENAME), join(homedir(), CONFIG_FILENAME)];
 
   for (const path of paths) {
     if (existsSync(path)) {
@@ -47,10 +50,7 @@ function validateConfig(config: Partial<Config>): string[] {
     warnings.push("maxSubjectLength is unusually short (< 20 characters)");
   }
 
-  if (
-    config.verbosity &&
-    !["minimal", "normal", "detailed"].includes(config.verbosity)
-  ) {
+  if (config.verbosity && !["minimal", "normal", "detailed"].includes(config.verbosity)) {
     warnings.push(`Invalid verbosity: ${config.verbosity}`);
   }
 
@@ -76,7 +76,9 @@ export function loadConfig(): Config {
       }
     } catch (error) {
       if (process.env.DEBUG) {
-        console.warn(`Failed to parse config at ${configPath}`);
+        console.warn(
+          `Failed to parse config at ${configPath}: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
   }
@@ -94,7 +96,8 @@ export function loadConfig(): Config {
 export function getConfigTemplate(): string {
   return JSON.stringify(
     {
-      model: "grok-code-fast-1",
+      model: DEFAULT_COPILOT_MODEL,
+      premiumModel: DEFAULT_PREMIUM_MODEL,
       conventionalCommit: true,
       includeScope: true,
       includeEmoji: false,
@@ -102,6 +105,6 @@ export function getConfigTemplate(): string {
       verbosity: "normal",
     },
     null,
-    2,
+    2
   );
 }

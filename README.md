@@ -30,6 +30,8 @@ commit-ai
 
 Interactive dashboard streams AI-generated message → choose **Commit**, **Regenerate**, or **Cancel**.
 
+<img width="717" height="579" alt="image" src="https://github.com/user-attachments/assets/1636f583-70bf-43dd-878b-b0543ee70fcc" />
+
 <img width="724" height="603" alt="image" src="https://github.com/user-attachments/assets/a49eb302-4f75-4458-9074-0271c3952940" />
 
 

@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
 
+/** Regeneration style: same, detailed, minimal, premium, or custom instruction */
 export type RegenerateStyle = "same" | "detailed" | "minimal" | "premium" | "custom";
 
 interface StyleMenuProps {
@@ -31,6 +32,10 @@ const STYLES = [
   },
 ];
 
+/**
+ * Regenerate-style selection: same, detailed, minimal, premium, or custom instruction.
+ * @param props.onSelect - Callback when a style is selected
+ */
 export function StyleMenu({ onSelect }: StyleMenuProps) {
   return (
     <Box flexDirection="column" paddingX={1} marginTop={1}>

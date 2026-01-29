@@ -6,6 +6,11 @@ interface ContextPanelProps {
   showFiles?: boolean;
 }
 
+/**
+ * Staged file count and optional file list for context.
+ * @param props.files - List of staged file paths
+ * @param props.showFiles - When true, show up to 10 file names
+ */
 export function ContextPanel({ files, showFiles = false }: ContextPanelProps) {
   const fileCount = files.length;
   const displayFiles = showFiles ? files.slice(0, 10) : [];

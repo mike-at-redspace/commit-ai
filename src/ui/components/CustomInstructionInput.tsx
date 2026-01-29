@@ -7,6 +7,11 @@ interface CustomInstructionInputProps {
   onCancel: () => void;
 }
 
+/**
+ * Free-text instruction input for custom regeneration.
+ * @param props.onSubmit - Callback with trimmed instruction when user submits
+ * @param props.onCancel - Callback when user cancels (empty submit)
+ */
 export function CustomInstructionInput({ onSubmit, onCancel }: CustomInstructionInputProps) {
   const [value, setValue] = useState("");
 

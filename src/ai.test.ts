@@ -126,7 +126,9 @@ describe("CommitGenerator", () => {
       stop: vi.fn().mockResolvedValue(undefined),
     };
 
-    const generator = new CommitGenerator(mockClient as unknown as import("@github/copilot-sdk").CopilotClient);
+    const generator = new CommitGenerator(
+      mockClient as unknown as import("@github/copilot-sdk").CopilotClient
+    );
     await generator.generate(
       "diff",
       defaultConfig,

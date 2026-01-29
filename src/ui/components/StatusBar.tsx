@@ -9,9 +9,19 @@ interface StatusBarProps {
   isGenerating: boolean;
   error?: string;
   status?: string;
+  /** Shown when ready and no error/status (e.g. truncated diff hint) */
+  hint?: string;
 }
 
-export function StatusBar({ phase, isGenerating, error, status }: StatusBarProps) {
+/**
+ * Spinner/phase label while generating, or error/status/hint when not.
+ * @param props.phase - Current progress phase (session, sending, streaming)
+ * @param props.isGenerating - When true, show spinner and phase label
+ * @param props.error - Error message to show (takes precedence)
+ * @param props.status - Status text (e.g. "Committing...")
+ * @param props.hint - Hint text when ready and no error/status (e.g. truncated diff hint)
+ */
+export function StatusBar({ phase, isGenerating, error, status, hint }: StatusBarProps) {
   if (error) {
     return (
       <Box paddingX={1} marginTop={1}>
@@ -37,6 +47,14 @@ export function StatusBar({ phase, isGenerating, error, status }: StatusBarProps
     return (
       <Box paddingX={1} marginTop={1}>
         <Text color="gray">{status}</Text>
+      </Box>
+    );
+  }
+
+  if (hint) {
+    return (
+      <Box paddingX={1} marginTop={1}>
+        <Text color="cyan">{hint}</Text>
       </Box>
     );
   }

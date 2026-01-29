@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
 
+/** User action when message is ready: commit, regenerate, or cancel */
 export type Action = "commit" | "regenerate" | "cancel";
 
 interface ActionMenuProps {
@@ -24,6 +25,11 @@ const ACTIONS = [
   },
 ];
 
+/**
+ * Commit / Regenerate / Cancel action choices shown when the message is ready.
+ * @param props.onSelect - Callback when an action is selected
+ * @param props.disabled - When true, renders nothing
+ */
 export function ActionMenu({ onSelect, disabled = false }: ActionMenuProps) {
   if (disabled) {
     return null;

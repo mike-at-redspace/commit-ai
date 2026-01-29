@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import { Box } from "ink";
 import { Header } from "./components/Header.js";
 import { ContextPanel } from "./components/ContextPanel.js";
@@ -7,6 +7,7 @@ import { ActionMenu, type Action } from "./components/ActionMenu.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { StyleMenu, type RegenerateStyle } from "./components/StyleMenu.js";
 import { CustomInstructionInput } from "./components/CustomInstructionInput.js";
+import { useRunOnceOnMount } from "./hooks/useRunOnceOnMount.js";
 import type { Config, CommitContext } from "../types.js";
 import type { CommitGenerator, GenerateProgressPhase } from "../ai.js";
 import { commit } from "../git.js";
@@ -14,6 +15,10 @@ import { DEFAULT_PREMIUM_MODEL, STATUS_CANCELLED, STATUS_COMMITTING } from "../c
 
 interface CommitDashboardProps {
   diff: string;
+  /** Output of `git diff --staged --stat` for high-level summary when diff is truncated */
+  diffStat?: string;
+  /** When true, diff exceeded the limit and was truncated; show premium suggestion */
+  diffTruncated?: boolean;
   config: Config;
   context: CommitContext;
   generator: CommitGenerator;
@@ -32,8 +37,23 @@ type ViewState =
   | "committing"
   | "cancelled";
 
+/**
+ * Main interactive dashboard: runs initial generation, shows message, style menu, and commit/cancel actions.
+ * @param props.diff - Staged diff content
+ * @param props.diffStat - Optional output of `git diff --staged --stat`
+ * @param props.diffTruncated - When true, diff was truncated; may suggest premium
+ * @param props.config - Generation config
+ * @param props.context - Branch and recent commits
+ * @param props.generator - CommitGenerator instance
+ * @param props.files - Staged file paths
+ * @param props.version - Optional CLI version
+ * @param props.onComplete - Called on successful commit or cancel
+ * @param props.onError - Called on generation or commit error
+ */
 export function CommitDashboard({
   diff,
+  diffStat,
+  diffTruncated,
   config: initialConfig,
   context,
   generator,
@@ -84,7 +104,8 @@ export function CommitDashboard({
           instruction,
           onChunk,
           onProgress,
-          modelOverride
+          modelOverride,
+          diffStat
         );
 
         if (key === generationKey.current) {
@@ -101,13 +122,17 @@ export function CommitDashboard({
         }
       }
     },
-    [diff, context, generator, onError]
+    [diff, diffStat, context, generator, onError]
   );
 
-  // Initial generation
-  useEffect(() => {
-    generateMessage(config);
-  }, []); // Only run on mount
+  // Initial generation (use premium when diff was truncated and config says so)
+  useRunOnceOnMount(() => {
+    const usePremium =
+      diffTruncated && (initialConfig.preferPremiumForLargeDiffs ?? false)
+        ? (initialConfig.premiumModel ?? DEFAULT_PREMIUM_MODEL)
+        : undefined;
+    generateMessage(initialConfig, undefined, usePremium);
+  });
 
   // Handle action selection
   const handleAction = useCallback(
@@ -197,6 +222,11 @@ export function CommitDashboard({
             : viewState === "cancelled"
               ? STATUS_CANCELLED
               : undefined
+        }
+        hint={
+          diffTruncated && showMenu
+            ? "Diff was truncated. For better results, try 'Retry with premium model'."
+            : undefined
         }
       />
       {showStyleMenu && <StyleMenu onSelect={handleStyleSelect} />}

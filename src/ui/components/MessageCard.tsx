@@ -6,6 +6,11 @@ interface MessageCardProps {
   isStreaming: boolean;
 }
 
+/**
+ * Commit message display with streaming vs ready styling (border color).
+ * @param props.message - Commit message text (subject + optional body)
+ * @param props.isStreaming - When true, show streaming border (yellow)
+ */
 export function MessageCard({ message, isStreaming }: MessageCardProps) {
   const borderColor = isStreaming ? "yellow" : "white";
   const lines = message.split("\n");

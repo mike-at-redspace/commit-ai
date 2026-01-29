@@ -4,8 +4,12 @@ import { EMOJI_MAP, COPILOT_SESSION_TIMEOUT } from "./constants.js";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
 
 /**
- * Parses raw AI output into structured commit message
- * Handles emoji injection, scope formatting, and length limits
+ * Parses raw AI output into a structured commit message.
+ * Handles emoji injection, scope formatting, and subject length limits.
+ * @param raw - Raw string from the model (may include markdown fences)
+ * @param config - Config for conventional/emoji/scope and maxSubjectLength
+ * @returns Parsed subject, body, type, scope, and fullMessage
+ * @throws Error if the generated message is empty
  */
 export function parseCommitMessage(raw: string, config: Config): GeneratedMessage {
   const cleaned = raw
@@ -67,12 +71,26 @@ export type GenerateProgressPhase = "session" | "sending" | "streaming";
 export class CommitGenerator {
   private session: Awaited<ReturnType<CopilotClient["createSession"]>> | null = null;
 
+  /**
+   * @param client - CopilotClient instance (e.g. from @github/copilot-sdk)
+   */
   constructor(private client: CopilotClient) {}
 
   /**
-   * Generate a commit message from a diff using the configured client.
+   * Generates a commit message from a diff using the configured client.
    * Reuses the same Copilot session on subsequent calls so the system prompt is not resent.
    * When modelOverride is set, uses a one-off session with that model and does not reuse it.
+   * When diffStat is provided (e.g. from `git diff --staged --stat`), it is prepended to the prompt for context.
+   * @param diff - Staged diff content
+   * @param config - Generation config
+   * @param context - Optional branch and recent commits
+   * @param customInstruction - Optional user instruction for regeneration
+   * @param onChunk - Optional callback for each streamed chunk
+   * @param onProgress - Optional callback for phase changes
+   * @param modelOverride - Optional model id (e.g. premium); uses one-off session
+   * @param diffStat - Optional output of `git diff --staged --stat`
+   * @returns The parsed commit message
+   * @throws Error when generation or session fails
    */
   async generate(
     diff: string,
@@ -81,9 +99,10 @@ export class CommitGenerator {
     customInstruction?: string,
     onChunk?: (chunk: string) => void,
     onProgress?: (phase: GenerateProgressPhase) => void,
-    modelOverride?: string
+    modelOverride?: string,
+    diffStat?: string
   ): Promise<GeneratedMessage> {
-    const prompt = buildUserPrompt(diff, config, context, customInstruction);
+    const prompt = buildUserPrompt(diff, config, context, customInstruction, diffStat);
 
     try {
       if (modelOverride) {
@@ -97,12 +116,7 @@ export class CommitGenerator {
           },
         });
         try {
-          const rawMessage = await this.runWithSession(
-            tempSession,
-            prompt,
-            onChunk,
-            onProgress
-          );
+          const rawMessage = await this.runWithSession(tempSession, prompt, onChunk, onProgress);
           return parseCommitMessage(rawMessage, config);
         } finally {
           await tempSession.destroy();
@@ -121,12 +135,7 @@ export class CommitGenerator {
         });
       }
 
-      const rawMessage = await this.runWithSession(
-        this.session,
-        prompt,
-        onChunk,
-        onProgress
-      );
+      const rawMessage = await this.runWithSession(this.session, prompt, onChunk, onProgress);
       return parseCommitMessage(rawMessage, config);
     } catch (error) {
       if (this.session) {
@@ -137,6 +146,15 @@ export class CommitGenerator {
     }
   }
 
+  /**
+   * Sends the prompt to the session, streams deltas via onChunk/onProgress, and returns the raw message text.
+   * @param session - Active Copilot session
+   * @param prompt - User prompt (diff + context)
+   * @param onChunk - Optional callback for each streamed delta
+   * @param onProgress - Optional callback for phase (e.g. "streaming")
+   * @returns Raw assistant message text
+   * @throws Error on session timeout or empty response
+   */
   private async runWithSession(
     session: Awaited<ReturnType<CopilotClient["createSession"]>>,
     prompt: string,
@@ -146,7 +164,7 @@ export class CommitGenerator {
     let fullRawMessage = "";
     let hasReportedStreaming = false;
 
-    const done = new Promise<void>((resolve, reject) => {
+    const done = new Promise<void>((resolve, _reject) => {
       session.on((event: { type: string; data?: unknown }) => {
         const data = event.data as { deltaContent?: string; content?: string } | undefined;
         if (event.type === "assistant.message_delta" && data?.deltaContent) {
@@ -184,7 +202,7 @@ export class CommitGenerator {
   }
 
   /**
-   * Stop the Copilot client. Destroys the session if present. Call before process exit.
+   * Stops the Copilot client and destroys the session if present. Call before process exit.
    */
   async stop(): Promise<void> {
     try {

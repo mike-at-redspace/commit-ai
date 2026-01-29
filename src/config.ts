@@ -6,6 +6,7 @@ import {
   CONFIG_FILENAME,
   DEFAULT_COPILOT_MODEL,
   DEFAULT_PREMIUM_MODEL,
+  MAX_DIFF_LENGTH,
   MAX_SUBJECT_LENGTH,
 } from "./constants.js";
 
@@ -25,8 +26,9 @@ const DEFAULT_CONFIG: Config = {
 };
 
 /**
- * Resolves the first available config file path
- * Priority: project root > home directory > none
+ * Resolves the first available config file path.
+ * Priority: project root > home directory > none.
+ * @returns Path to .commit-ai.json or null if not found
  */
 function resolveConfigPath(): string | null {
   const paths = [join(process.cwd(), CONFIG_FILENAME), join(homedir(), CONFIG_FILENAME)];
@@ -41,7 +43,9 @@ function resolveConfigPath(): string | null {
 }
 
 /**
- * Validates configuration object and returns list of warnings
+ * Validates configuration object and returns a list of warning messages (no throw).
+ * @param config - Partial config to validate
+ * @returns Array of warning strings (empty if valid)
  */
 function validateConfig(config: Partial<Config>): string[] {
   const warnings: string[] = [];
@@ -54,12 +58,26 @@ function validateConfig(config: Partial<Config>): string[] {
     warnings.push(`Invalid verbosity: ${config.verbosity}`);
   }
 
+  if (
+    config.maxDiffLength !== undefined &&
+    (config.maxDiffLength < 0 || config.maxDiffLength > 2 * 1024 * 1024)
+  ) {
+    warnings.push("maxDiffLength should be between 0 and 2MB");
+  }
+  if (
+    config.maxDiffTokens !== undefined &&
+    (config.maxDiffTokens < 0 || config.maxDiffTokens > 500_000)
+  ) {
+    warnings.push("maxDiffTokens should be between 0 and 500000");
+  }
+
   return warnings;
 }
 
 /**
- * Loads configuration from files and environment variables
- * Merges in priority order: defaults < file config < env vars
+ * Loads configuration from files and environment variables.
+ * Merges in priority order: defaults &lt; file config &lt; env vars (COMMIT_AI_MODEL).
+ * @returns Merged Config object
  */
 export function loadConfig(): Config {
   const configPath = resolveConfigPath();
@@ -91,7 +109,8 @@ export function loadConfig(): Config {
 }
 
 /**
- * Returns a JSON template for creating a config file
+ * Returns a JSON template for creating a config file (e.g. for --init).
+ * @returns Pretty-printed JSON string
  */
 export function getConfigTemplate(): string {
   return JSON.stringify(
@@ -103,6 +122,9 @@ export function getConfigTemplate(): string {
       includeEmoji: false,
       maxSubjectLength: MAX_SUBJECT_LENGTH,
       verbosity: "normal",
+      maxDiffLength: MAX_DIFF_LENGTH,
+      ignoreWhitespaceInDiff: false,
+      preferPremiumForLargeDiffs: false,
     },
     null,
     2

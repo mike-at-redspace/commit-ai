@@ -18,10 +18,12 @@ import { CommitGenerator } from "./ai.js";
 import type { Config, CommitContext, GeneratedMessage } from "./types.js";
 import type { GenerateProgressPhase } from "./ai.js";
 import { CommitDashboard } from "./ui/CommitDashboard.js";
+import { getEffectiveDiffLimit } from "./prompt.js";
 import { PROGRESS_STEP_LABELS, VERSION } from "./constants.js";
 
 /**
- * Validates that we're in a git repository
+ * Validates that the current directory is a git repository; exits with an error message if not.
+ * @returns Promise that resolves when valid, or never (process exits) when invalid
  */
 async function validateGitRepo(): Promise<void> {
   const inside = await isGitRepository();
@@ -31,10 +33,19 @@ async function validateGitRepo(): Promise<void> {
   }
 }
 
+/**
+ * Maps a progress phase key to a user-facing label for error context (e.g. "Stopped after X").
+ * @param step - Progress phase key (e.g. "session", "sending", "streaming")
+ * @returns User-facing label string
+ */
 function progressStepToLabel(step: string): string {
   return PROGRESS_STEP_LABELS[step] ?? "generating message";
 }
 
+/**
+ * Logs an error to stderr (Error message or generic text). Used before process exit.
+ * @param error - Caught value (Error instance or other)
+ */
 function reportError(error: unknown): void {
   if (error instanceof Error) {
     console.error(chalk.red(`Error: ${error.message}`));
@@ -44,7 +55,8 @@ function reportError(error: unknown): void {
 }
 
 /**
- * Fetches branch and recent commits
+ * Fetches branch name and recent commit messages for AI context.
+ * @returns CommitContext with recentCommits and branch
  */
 async function gatherContext(): Promise<CommitContext> {
   const context: CommitContext = {
@@ -55,15 +67,23 @@ async function gatherContext(): Promise<CommitContext> {
 }
 
 /**
- * Non-interactive generation for --yes and --dry-run modes
- * Uses minimal console output instead of Ink UI
+ * Non-interactive generation for --yes and --dry-run modes.
+ * Uses minimal console output instead of Ink UI; writes streamed chunks to stdout.
+ * @param generator - CommitGenerator instance
+ * @param diff - Staged diff content
+ * @param config - Generation config
+ * @param context - Branch and recent commits
+ * @param progressRef - Mutable ref updated with current progress phase
+ * @param diffStat - Optional output of `git diff --staged --stat`
+ * @returns The generated commit message
  */
 async function generateMessageNonInteractive(
   generator: CommitGenerator,
   diff: string,
   config: Config,
   context: CommitContext,
-  progressRef: { current: string }
+  progressRef: { current: string },
+  diffStat?: string
 ): Promise<GeneratedMessage> {
   const onChunk = (chunk: string): void => {
     process.stdout.write(chunk);
@@ -73,13 +93,24 @@ async function generateMessageNonInteractive(
     progressRef.current = phase;
   };
 
-  const message = await generator.generate(diff, config, context, undefined, onChunk, onProgress);
+  const message = await generator.generate(
+    diff,
+    config,
+    context,
+    undefined,
+    onChunk,
+    onProgress,
+    undefined,
+    diffStat
+  );
   console.log(""); // New line after message
   return message;
 }
 
 /**
- * Performs the actual git commit and handles cleanup
+ * Performs the actual git commit and stops the generator. Logs success or rethrows on failure.
+ * @param message - Full commit message to use
+ * @param generator - CommitGenerator to stop after commit
  */
 async function doCommit(message: string, generator: CommitGenerator): Promise<void> {
   try {
@@ -94,9 +125,9 @@ async function doCommit(message: string, generator: CommitGenerator): Promise<vo
 }
 
 /**
- * Main CLI entry point
+ * Main CLI entry point: parses options, validates repo, loads config, and runs interactive or non-interactive flow.
  */
-async function main() {
+async function main(): Promise<void> {
   program
     .name("commit-ai")
     .description("AI-powered commit message generator using GitHub Copilot")
@@ -138,7 +169,7 @@ async function main() {
     }
   }
 
-  const diff = await getGitDiff();
+  const diff = await getGitDiff({ ignoreWhitespace: config.ignoreWhitespaceInDiff });
 
   if (!diff.staged || diff.stagedFiles.length === 0) {
     console.log(chalk.yellow("No staged changes found."));
@@ -172,7 +203,8 @@ async function main() {
         diff.staged,
         config,
         context,
-        progressRef
+        progressRef,
+        diff.stat
       );
 
       if (options.explain) {
@@ -205,6 +237,8 @@ async function main() {
       const { waitUntilExit } = render(
         React.createElement(CommitDashboard, {
           diff: diff.staged,
+          diffStat: diff.stat,
+          diffTruncated: diff.staged.length > getEffectiveDiffLimit(config),
           config,
           context,
           generator,

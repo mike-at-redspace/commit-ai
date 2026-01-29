@@ -36,49 +36,184 @@ Real-world examples:
 - refactor(hooks): extract useAuth logic for reusability
 - docs(readme): add troubleshooting section for M1 Macs
 
-CRITICAL: Output ONLY the commit message. No markdown, no explanations, no fluff.`;
+CRITICAL: Output ONLY the commit message. No markdown, no explanations, no fluff.
+
+When the user message includes "[Note: Diff was truncated]" or similar: the visible diff is incomplete. Rely more on the branch name and recent commits to infer scope and intent, and still produce a coherent conventional commit from the partial changes and context.`;
+
+/** Approximate chars per token for code (conservative) */
+const CHARS_PER_TOKEN = 3.5;
+
+const LOCKFILE_NAMES = new Set([
+  "package-lock.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "bun.lockb",
+  "Cargo.lock",
+  "go.sum",
+]);
+const DEPRIORITIZED_DIRS = ["dist/", "build/", ".cache/", "out/", "coverage/"];
+const PREFERRED_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".py",
+  ".go",
+  ".rs",
+  ".java",
+  ".kt",
+]);
 
 /**
- * Truncates large diffs to avoid hitting token limits
+ * Numeric priority for file-aware diff truncation: 0 = lockfiles/deprioritized dirs, 1 = other, 2 = preferred (source files, package.json, etc.).
+ * @param path - File path (e.g. "src/foo.ts" or "package.json")
+ * @returns Priority 0, 1, or 2
  */
-function truncateDiff(diff: string): {
+function pathPriority(path: string): number {
+  const base = path.split("/").pop() ?? path;
+  if (LOCKFILE_NAMES.has(base)) return 0;
+  const lower = path.toLowerCase();
+  if (DEPRIORITIZED_DIRS.some((d) => lower.startsWith(d))) return 0;
+  if (base === "package.json" || base === "Cargo.toml" || base === "go.mod") return 2;
+  const ext = base.includes(".") ? base.slice(base.lastIndexOf(".")) : "";
+  if (PREFERRED_EXTENSIONS.has(ext)) return 2;
+  return 1;
+}
+
+/**
+ * Splits a raw git diff into one chunk per file (each chunk starts with "diff --git ").
+ * @param diff - Raw git diff string
+ * @returns Array of { path, chunk } for each file
+ */
+function splitDiffIntoFileChunks(diff: string): { path: string; chunk: string }[] {
+  const parts = diff.split(/(?=^diff --git )/m).filter(Boolean);
+  const chunks: { path: string; chunk: string }[] = [];
+  for (const chunk of parts) {
+    const match = chunk.match(/^diff --git a\/(.+?) b\//m);
+    const path = match ? match[1] : "unknown";
+    chunks.push({ path, chunk });
+  }
+  if (chunks.length === 0 && diff.trim()) {
+    chunks.push({ path: "unknown", chunk: diff });
+  }
+  return chunks;
+}
+
+/**
+ * Effective diff length limit in characters (min of maxDiffLength and token-based limit).
+ * @param config - Config with maxDiffLength and optional maxDiffTokens
+ * @returns Character limit for truncation
+ */
+export function getEffectiveDiffLimit(config: Config): number {
+  const charLimit = config.maxDiffLength ?? MAX_DIFF_LENGTH;
+  const tokenLimit = config.maxDiffTokens;
+  if (tokenLimit === undefined) {
+    return charLimit;
+  }
+  const maxCharsFromTokens = Math.floor(tokenLimit * CHARS_PER_TOKEN);
+  return Math.min(charLimit, maxCharsFromTokens);
+}
+
+/**
+ * Truncates large diffs to avoid hitting token limits.
+ * When over limit, uses file-aware truncation: keeps higher-priority files
+ * (e.g. source code, package.json) and omits or tail-truncates lower-priority
+ * files (lockfiles, dist/, build/).
+ * @param diff - Raw git diff string
+ * @param effectiveLimit - Max character length
+ * @returns Object with content and wasTruncated
+ */
+function truncateDiff(
+  diff: string,
+  effectiveLimit: number
+): {
   content: string;
   wasTruncated: boolean;
 } {
-  if (diff.length <= MAX_DIFF_LENGTH) {
+  if (diff.length <= effectiveLimit) {
     return { content: diff, wasTruncated: false };
   }
 
-  const lines = diff.split("\n");
-  const truncatedLines: string[] = [];
-  let currentLength = 0;
-
-  for (const line of lines) {
-    if (currentLength + line.length + 1 > MAX_DIFF_LENGTH) {
-      break;
+  const fileChunks = splitDiffIntoFileChunks(diff);
+  if (fileChunks.length <= 1) {
+    const lines = diff.split("\n");
+    const truncatedLines: string[] = [];
+    let currentLength = 0;
+    for (const line of lines) {
+      if (currentLength + line.length + 1 > effectiveLimit) break;
+      truncatedLines.push(line);
+      currentLength += line.length + 1;
     }
-    truncatedLines.push(line);
-    currentLength += line.length + 1;
+    return {
+      content: truncatedLines.join("\n"),
+      wasTruncated: true,
+    };
   }
 
+  const sorted = [...fileChunks].sort(
+    (a, b) =>
+      pathPriority(b.path) - pathPriority(a.path) || fileChunks.indexOf(a) - fileChunks.indexOf(b)
+  );
+  const result: string[] = [];
+  let currentLength = 0;
+
+  for (const { path, chunk } of sorted) {
+    const chunkLen = chunk.length + (result.length ? 1 : 0);
+    if (currentLength + chunkLen <= effectiveLimit) {
+      result.push(chunk);
+      currentLength += chunkLen;
+    } else if (currentLength < effectiveLimit && pathPriority(path) >= 1) {
+      const budget = effectiveLimit - currentLength - (result.length ? 1 : 0) - 50;
+      if (budget > 100) {
+        const lines = chunk.split("\n");
+        let tailLength = 0;
+        const tailLines: string[] = [];
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i];
+          if (tailLength + line.length + 1 > budget) break;
+          tailLines.unshift(line);
+          tailLength += line.length + 1;
+        }
+        const truncatedChunk = lines[0] + "\n...[truncated]...\n" + tailLines.join("\n");
+        result.push(truncatedChunk);
+        currentLength += truncatedChunk.length + (result.length > 1 ? 1 : 0);
+      }
+      break;
+    }
+  }
+
+  const content = result.join("\n");
   return {
-    content: truncatedLines.join("\n"),
+    content: content || diff.slice(0, effectiveLimit),
     wasTruncated: true,
   };
 }
 
 /**
- * Builds the user prompt with diff, context, and config-specific instructions
+ * Builds the user prompt with diff, context, and config-specific instructions.
+ * When stat is provided, it is prepended so the model sees a high-level summary of changed files.
+ * @param diff - Staged diff (may be truncated by getEffectiveDiffLimit/truncateDiff)
+ * @param config - Generation config (verbosity, conventional, scope, etc.)
+ * @param context - Optional recent commits and branch
+ * @param customInstruction - Optional user instruction for regeneration
+ * @param stat - Optional output of `git diff --staged --stat`
+ * @returns Full user prompt string
  */
 export function buildUserPrompt(
   diff: string,
   config: Config,
   context?: CommitContext,
-  customInstruction?: string
+  customInstruction?: string,
+  stat?: string
 ): string {
-  const { content, wasTruncated } = truncateDiff(diff);
+  const effectiveLimit = getEffectiveDiffLimit(config);
+  const { content, wasTruncated } = truncateDiff(diff, effectiveLimit);
 
-  let prompt = `Analyze this git diff and generate a commit message:\n\n${content}`;
+  let prompt = "";
+  if (stat) {
+    prompt += `Summary of changed files (lines added/removed):\n${stat}\n\n`;
+  }
+  prompt += `Analyze this git diff and generate a commit message:\n\n${content}`;
 
   if (wasTruncated) {
     prompt +=

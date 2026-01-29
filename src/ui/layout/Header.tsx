@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { LOGO_ANIMATION_COLORS, LOGO_LINES } from "../../constants.js";
-import { useLogoAnimation } from "../hooks/useLogoAnimation.js";
+import { LOGO_ANIMATION_COLORS, LOGO_LINES } from "@core/config";
+import { useLogoAnimation } from "@ui/hooks/useLogoAnimation";
 
 interface HeaderProps {
   branch: string;

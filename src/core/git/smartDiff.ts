@@ -1,4 +1,4 @@
-import type { Config } from "./types.js";
+import type { Config } from "@core/config";
 
 /** Conflict marker line prefixes (git merge conflict) */
 const CONFLICT_MARKERS = /^(<<<<<<<|=======|>>>>>>>|\|\|\|\|\|\|\|)/;

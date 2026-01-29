@@ -1,23 +1,25 @@
 import React, { useState, useCallback, useRef } from "react";
 import { Box } from "ink";
-import { Header } from "./parts/Header.js";
-import { InfoPanel } from "./parts/InfoPanel.js";
-import { ContentCard } from "./parts/ContentCard.js";
-import { ChoiceMenu } from "./parts/ChoiceMenu.js";
-import { ProgressBar } from "./parts/ProgressBar.js";
-import { StyleOptionsMenu } from "./parts/StyleOptionsMenu.js";
-import { InstructionInput } from "./parts/InstructionInput.js";
-import { useRunOnceOnMount } from "./hooks/useRunOnceOnMount.js";
+import {
+  Header,
+  InfoPanel,
+  ContentCard,
+  ChoiceMenu,
+  ProgressBar,
+  StyleOptionsMenu,
+  InstructionInput,
+} from "@ui/layout";
+import { useRunOnceOnMount } from "@ui/hooks/useRunOnceOnMount";
 import type {
   Config,
   CommitContext,
   Action,
   RegenerateStyle,
   GenerateProgressPhase,
-} from "../types.js";
-import type { CommitGenerator } from "../ai.js";
-import { commit } from "../git.js";
-import { DEFAULT_PREMIUM_MODEL, STATUS_CANCELLED, STATUS_COMMITTING } from "../constants.js";
+} from "@core/config";
+import type { CommitGenerator } from "@core/ai";
+import { commit } from "@core/git";
+import { DEFAULT_PREMIUM_MODEL, STATUS_CANCELLED, STATUS_COMMITTING } from "@core/config";
 
 interface DashboardProps {
   diff: string;

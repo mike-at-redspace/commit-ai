@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
 import Spinner from "ink-spinner";
-import type { GenerateProgressPhase } from "../../types.js";
-import { PROGRESS_SPINNER_LABELS } from "../../constants.js";
+import type { GenerateProgressPhase } from "@core/config";
+import { PROGRESS_SPINNER_LABELS } from "@core/config";
 
 interface StatusBarProps {
   phase?: GenerateProgressPhase;

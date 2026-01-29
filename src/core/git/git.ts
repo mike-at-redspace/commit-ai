@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
-import type { GitDiff, GitExecutor, GetGitDiffOptions } from "./types.js";
-import { MAX_GIT_BUFFER_SIZE, DEFAULT_RECENT_COMMITS_COUNT } from "./constants.js";
+import type { GitDiff, GitExecutor, GetGitDiffOptions } from "@core/config";
+import { MAX_GIT_BUFFER_SIZE, DEFAULT_RECENT_COMMITS_COUNT } from "@core/config";
 
 let executor: GitExecutor = defaultExecutor;
 

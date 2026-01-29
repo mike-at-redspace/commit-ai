@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LOGO_ANIMATION_INTERVAL_MS } from "../../constants.js";
+import { LOGO_ANIMATION_INTERVAL_MS } from "@core/config";
 
 /**
  * Advances a tick every intervalMs for logo color animation. Cleans up the interval on unmount.

@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
-import type { RegenerateStyle } from "../../types.js";
-import { STYLES } from "../../constants.js";
+import type { RegenerateStyle } from "@core/config";
+import { STYLES } from "@core/config";
 
 interface StyleMenuProps {
   onSelect: (style: RegenerateStyle) => void;

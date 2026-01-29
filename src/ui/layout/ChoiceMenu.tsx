@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
-import type { Action } from "../../types.js";
-import { ACTIONS } from "../../constants.js";
+import type { Action } from "@core/config";
+import { ACTIONS } from "@core/config";
 
 interface ChoiceMenuProps {
   onSelect: (action: Action) => void;

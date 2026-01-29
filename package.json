@@ -7,7 +7,7 @@
     "commit-ai": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias -p tsconfig.json",
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
@@ -46,6 +46,7 @@
     "prettier": "^3.4.2",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0",
+    "tsc-alias": "^1.8.10",
     "typescript-eslint": "^8.15.0",
     "vitest": "^2.1.0"
   },

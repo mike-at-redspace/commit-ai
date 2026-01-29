@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      "@core": resolve(__dirname, "./src/core"),
+      "@core/*": resolve(__dirname, "./src/core/*"),
+      "@ui": resolve(__dirname, "./src/ui"),
+      "@ui/*": resolve(__dirname, "./src/ui/*"),
     },
   },
   esbuild: {

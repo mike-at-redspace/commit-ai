@@ -1,6 +1,6 @@
-import type { Config, CommitContext } from "./types.js";
-import { MAX_DIFF_LENGTH } from "./constants.js";
-import { getSmartDiff } from "./smartDiff.js";
+import type { Config, CommitContext } from "@core/config";
+import { MAX_DIFF_LENGTH } from "@core/config";
+import { getSmartDiff } from "@core/git";
 
 /**
  * System prompt that guides the AI to write killer commit messages
@@ -14,7 +14,7 @@ Your mission: analyze git diffs and craft commit messages that tell the story of
 
 Core principles:
 1. Focus on INTENT - Why did this change happen? What problem does it solve?
-2. Present tense, imperative mood (e.g., "Add feature" not "Added feature") 
+2. Present tense, imperative mood (e.g. "Add feature" not "Added feature") 
 3. Keep subjects under 72 chars - respect those terminal windows
 4. Add a body with bullet points for anything non-trivial
 

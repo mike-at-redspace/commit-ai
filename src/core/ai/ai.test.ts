@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseCommitMessage, CommitGenerator } from "./ai.js";
-import type { Config } from "./types.js";
-import { MAX_SUBJECT_LENGTH } from "./constants.js";
+import type { Config } from "@core/config";
+import { MAX_SUBJECT_LENGTH } from "@core/config";
 
 const defaultConfig: Config = {
   model: "grok-code-fast-1",

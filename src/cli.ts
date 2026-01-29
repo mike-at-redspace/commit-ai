@@ -5,7 +5,7 @@ import chalk from "chalk";
 import { render } from "ink";
 import React from "react";
 import { CopilotClient } from "@github/copilot-sdk";
-import { loadConfig, getConfigTemplate } from "./config.js";
+import { loadConfig, getConfigTemplate } from "@core/config";
 import {
   isGitRepository,
   getGitDiff,
@@ -13,12 +13,11 @@ import {
   commit,
   getRecentCommits,
   getCurrentBranch,
-} from "./git.js";
-import { CommitGenerator } from "./ai.js";
-import type { Config, CommitContext, GeneratedMessage, GenerateProgressPhase } from "./types.js";
-import { Dashboard } from "./ui/Dashboard.js";
-import { getEffectiveDiffLimit } from "./prompt.js";
-import { PROGRESS_STEP_LABELS, VERSION } from "./constants.js";
+} from "@core/git";
+import { CommitGenerator, getEffectiveDiffLimit } from "@core/ai";
+import type { Config, CommitContext, GeneratedMessage, GenerateProgressPhase } from "@core/config";
+import { Dashboard } from "@ui/features/dashboard";
+import { PROGRESS_STEP_LABELS, VERSION } from "@core/config";
 
 /**
  * Validates that the current directory is a git repository; exits with an error message if not.

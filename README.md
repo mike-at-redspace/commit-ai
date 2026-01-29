@@ -30,6 +30,9 @@ commit-ai
 
 Interactive dashboard streams AI-generated message → choose **Commit**, **Regenerate**, or **Cancel**.
 
+<img width="724" height="603" alt="image" src="https://github.com/user-attachments/assets/a49eb302-4f75-4458-9074-0271c3952940" />
+
+
 ### Common Flags
 
 ```bash

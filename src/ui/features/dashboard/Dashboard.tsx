@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from "react";
-import { Box } from "ink";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Box, Text, useInput } from "ink";
 import {
   Header,
   InfoPanel,
@@ -10,16 +10,11 @@ import {
   InstructionInput,
 } from "@ui/layout";
 import { useRunOnceOnMount } from "@ui/hooks/useRunOnceOnMount";
-import type {
-  Config,
-  CommitContext,
-  Action,
-  RegenerateStyle,
-  GenerateProgressPhase,
-} from "@core/config";
-import type { CommitGenerator } from "@core/ai";
+import type { Config, Action, RegenerateStyle, GenerateProgressPhase } from "@core/config";
+import { runGenerateMessage } from "@core/ai";
 import { commit } from "@core/git";
 import { DEFAULT_PREMIUM_MODEL, STATUS_CANCELLED, STATUS_COMMITTING } from "@core/config";
+import { useCommitContext } from "@ui/context/CommitContext";
 
 interface DashboardProps {
   diff: string;
@@ -27,11 +22,12 @@ interface DashboardProps {
   diffStat?: string;
   /** When true, diff exceeded the limit and was truncated; show premium suggestion */
   diffTruncated?: boolean;
-  config: Config;
-  context: CommitContext;
-  generator: CommitGenerator;
   files: string[];
   version?: string;
+  /** When true, show file list in InfoPanel (e.g. --explain) */
+  showFiles?: boolean;
+  /** Mutable ref updated with current progress phase for CLI error reporting */
+  progressRef?: { current: string };
   onComplete: () => void;
   onError: (error: Error) => void;
 }
@@ -47,29 +43,20 @@ type ViewState =
 
 /**
  * Main interactive dashboard: runs initial generation, shows message, style menu, and commit/cancel actions.
- * @param props.diff - Staged diff content
- * @param props.diffStat - Optional output of `git diff --staged --stat`
- * @param props.diffTruncated - When true, diff was truncated; may suggest premium
- * @param props.config - Generation config
- * @param props.context - Branch and recent commits
- * @param props.generator - CommitGenerator instance
- * @param props.files - Staged file paths
- * @param props.version - Optional CLI version
- * @param props.onComplete - Called on successful commit or cancel
- * @param props.onError - Called on generation or commit error
+ * Config, context, and generator are read from CommitContext (must be wrapped in CommitProvider).
  */
 export function Dashboard({
   diff,
   diffStat,
   diffTruncated,
-  config: initialConfig,
-  context,
-  generator,
   files,
   version,
+  showFiles = false,
+  progressRef,
   onComplete,
   onError,
 }: DashboardProps) {
+  const { config: initialConfig, context, generator } = useCommitContext();
   const [message, setMessage] = useState<string>("");
   const [fullMessage, setFullMessage] = useState<string>("");
   const [phase, setPhase] = useState<GenerateProgressPhase>("session");
@@ -78,6 +65,18 @@ export function Dashboard({
   const [customInstruction, setCustomInstruction] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
   const generationKey = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      void generator.stop();
+    };
+  }, [generator]);
+
+  useInput((input) => {
+    if (input === "q" || input === "Q") {
+      void generator.stop().then(() => onComplete());
+    }
+  });
 
   // Generate commit message
   const generateMessage = useCallback(
@@ -98,6 +97,7 @@ export function Dashboard({
 
         const onProgress = (progressPhase: GenerateProgressPhase) => {
           if (key === generationKey.current) {
+            if (progressRef) progressRef.current = progressPhase;
             setPhase(progressPhase);
             if (progressPhase === "streaming") {
               setViewState("generating");
@@ -105,16 +105,14 @@ export function Dashboard({
           }
         };
 
-        const result = await generator.generate(
-          diff,
-          currentConfig,
-          context,
-          instruction,
+        const result = await runGenerateMessage(generator, diff, currentConfig, context, {
+          diffStat,
           onChunk,
           onProgress,
           modelOverride,
-          diffStat
-        );
+          alreadyTruncated: true,
+          wasTruncated: Boolean(diffTruncated),
+        });
 
         if (key === generationKey.current) {
           setMessage(result.fullMessage);
@@ -130,7 +128,7 @@ export function Dashboard({
         }
       }
     },
-    [diff, diffStat, context, generator, onError]
+    [diff, diffStat, context, generator, progressRef, onError, diffTruncated]
   );
 
   // Initial generation (use premium when diff was truncated and config says so)
@@ -215,22 +213,20 @@ export function Dashboard({
   const showStyleMenu = viewState === "style-selection";
   const showCustomInput = viewState === "custom-instruction";
 
+  let progressStatus: string | undefined;
+  if (viewState === "committing") progressStatus = STATUS_COMMITTING;
+  else if (viewState === "cancelled") progressStatus = STATUS_CANCELLED;
+
   return (
     <Box borderStyle="round" borderColor="green" padding={1} flexDirection="column">
       <Header branch={context.branch || "unknown"} version={version} />
-      <InfoPanel files={files} showFiles={false} />
+      <InfoPanel files={files} showFiles={showFiles} />
       <ContentCard message={message} isStreaming={isGenerating && phase === "streaming"} />
       <ProgressBar
         phase={isGenerating ? phase : undefined}
         isGenerating={isGenerating}
         error={error}
-        status={
-          viewState === "committing"
-            ? STATUS_COMMITTING
-            : viewState === "cancelled"
-              ? STATUS_CANCELLED
-              : undefined
-        }
+        status={progressStatus}
         hint={
           diffTruncated && showMenu
             ? "Diff was truncated. For better results, try 'Retry with premium model'."
@@ -245,6 +241,9 @@ export function Dashboard({
         />
       )}
       {showMenu && <ChoiceMenu onSelect={handleAction} />}
+      <Box marginTop={1}>
+        <Text color="gray">Press q to cancel</Text>
+      </Box>
     </Box>
   );
 }

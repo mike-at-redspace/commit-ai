@@ -2,22 +2,36 @@
 
 import { program } from "commander";
 import chalk from "chalk";
-import { render } from "ink";
-import React from "react";
 import { CopilotClient } from "@github/copilot-sdk";
 import { loadConfig, getConfigTemplate } from "@core/config";
 import {
   isGitRepository,
   getGitDiff,
+  getSmartDiff,
   stageAllChanges,
   commit,
   getRecentCommits,
   getCurrentBranch,
 } from "@core/git";
-import { CommitGenerator, getEffectiveDiffLimit } from "@core/ai";
-import type { Config, CommitContext, GeneratedMessage, GenerateProgressPhase } from "@core/config";
-import { Dashboard } from "@ui/features/dashboard";
-import { PROGRESS_STEP_LABELS, VERSION } from "@core/config";
+import { CommitGenerator, getEffectiveDiffLimit, runGenerateMessage } from "@core/ai";
+import type { Config, CommitContext, GenerateProgressPhase } from "@core/config";
+import { PROGRESS_STEP_LABELS, VERSION, INITIAL_PROGRESS_PHASE } from "@core/config";
+
+/** Options from commander (subset we use for overrides and flow). */
+interface CliOptions {
+  init?: boolean;
+  style?: string;
+  elevationThreshold?: string;
+  importCollapse?: boolean;
+  model?: string;
+  maxDiffLength?: string;
+  maxDiffTokens?: string;
+  all?: boolean;
+  verbose?: boolean;
+  yes?: boolean;
+  dryRun?: boolean;
+  explain?: boolean;
+}
 
 /**
  * Validates that the current directory is a git repository; exits with an error message if not.
@@ -66,14 +80,7 @@ async function gatherContext(): Promise<CommitContext> {
 
 /**
  * Non-interactive generation for --yes and --dry-run modes.
- * Uses minimal console output instead of Ink UI; writes streamed chunks to stdout.
- * @param generator - CommitGenerator instance
- * @param diff - Staged diff content
- * @param config - Generation config
- * @param context - Branch and recent commits
- * @param progressRef - Mutable ref updated with current progress phase
- * @param diffStat - Optional output of `git diff --staged --stat`
- * @returns The generated commit message
+ * Uses runGenerateMessage with stdout callbacks; diff is expected to be pre-truncated.
  */
 async function generateMessageNonInteractive(
   generator: CommitGenerator,
@@ -81,26 +88,19 @@ async function generateMessageNonInteractive(
   config: Config,
   context: CommitContext,
   progressRef: { current: string },
-  diffStat?: string
-): Promise<GeneratedMessage> {
-  const onChunk = (chunk: string): void => {
-    process.stdout.write(chunk);
-  };
-
-  const onProgress = (phase: GenerateProgressPhase): void => {
-    progressRef.current = phase;
-  };
-
-  const message = await generator.generate(
-    diff,
-    config,
-    context,
-    undefined,
-    onChunk,
-    onProgress,
-    undefined,
-    diffStat
-  );
+  diffStat?: string,
+  alreadyTruncated?: boolean,
+  wasTruncated?: boolean
+): Promise<Awaited<ReturnType<typeof runGenerateMessage>>> {
+  const message = await runGenerateMessage(generator, diff, config, context, {
+    diffStat,
+    onChunk: (chunk: string) => process.stdout.write(chunk),
+    onProgress: (phase: GenerateProgressPhase) => {
+      progressRef.current = phase;
+    },
+    alreadyTruncated,
+    wasTruncated,
+  });
   console.log(""); // New line after message
   return message;
 }
@@ -123,6 +123,93 @@ async function doCommit(message: string, generator: CommitGenerator): Promise<vo
 }
 
 /**
+ * Applies CLI option overrides to config. Exits with an error message on invalid values.
+ */
+function applyOptionOverrides(options: CliOptions, config: Config): void {
+  if (options.style) {
+    if (!["detailed", "minimal"].includes(options.style)) {
+      console.error(chalk.red("Invalid style. Must be 'detailed' or 'minimal'"));
+      process.exit(1);
+    }
+    config.verbosity = options.style as Config["verbosity"];
+  }
+  if (options.elevationThreshold !== undefined) {
+    const n = Number(options.elevationThreshold);
+    if (Number.isNaN(n) || n < 0 || n > 1) {
+      console.error(chalk.red("Invalid elevation-threshold. Must be a number between 0 and 1."));
+      process.exit(1);
+    }
+    config.elevationThreshold = n;
+  }
+  if (options.importCollapse === false) {
+    config.importCollapse = false;
+  }
+  if (options.model !== undefined) {
+    config.model = String(options.model).trim();
+    if (!config.model) {
+      console.error(chalk.red("Invalid model. Must be a non-empty string."));
+      process.exit(1);
+    }
+  }
+  if (options.maxDiffLength !== undefined) {
+    const n = Number(options.maxDiffLength);
+    if (Number.isNaN(n) || n < 1) {
+      console.error(chalk.red("Invalid max-diff-length. Must be a positive number."));
+      process.exit(1);
+    }
+    config.maxDiffLength = n;
+  }
+  if (options.maxDiffTokens !== undefined) {
+    const n = Number(options.maxDiffTokens);
+    if (Number.isNaN(n) || n < 1) {
+      console.error(chalk.red("Invalid max-diff-tokens. Must be a positive number."));
+      process.exit(1);
+    }
+    config.maxDiffTokens = n;
+  }
+}
+
+/**
+ * Stages changes if requested, loads diff and context, and computes truncated diff. Exits when no staged changes.
+ */
+async function prepareDiffAndContext(
+  config: Config,
+  options: Pick<CliOptions, "all" | "verbose">
+): Promise<{
+  diff: Awaited<ReturnType<typeof getGitDiff>>;
+  context: CommitContext;
+  truncatedDiff: string;
+  wasTruncated: boolean;
+}> {
+  if (options.all) {
+    await stageAllChanges();
+    if (options.verbose) {
+      console.log(chalk.gray("Staged all changes"));
+    }
+  }
+
+  const diff = await getGitDiff({ ignoreWhitespace: config.ignoreWhitespaceInDiff });
+
+  if (!diff.staged || diff.stagedFiles.length === 0) {
+    console.log(chalk.yellow("No staged changes found."));
+    console.log(chalk.gray("Stage changes with: git add <files>"));
+    console.log(chalk.gray("Or use: commit-ai --all to stage and commit all changes"));
+    process.exit(0);
+  }
+
+  const context = await gatherContext();
+  const effectiveLimit = getEffectiveDiffLimit(config);
+  const { content: truncatedDiff, wasTruncated } = getSmartDiff(
+    diff.staged,
+    diff.stat,
+    config,
+    effectiveLimit
+  );
+
+  return { diff, context, truncatedDiff, wasTruncated };
+}
+
+/**
  * Main CLI entry point: parses options, validates repo, loads config, and runs interactive or non-interactive flow.
  */
 async function main(): Promise<void> {
@@ -141,10 +228,19 @@ async function main(): Promise<void> {
       "Elevate low-priority files when fraction of changed lines in them exceeds this (0–1, default 0.8)"
     )
     .option("--no-import-collapse", "Disable collapsing of import lines in diffs")
+    .option("--model <name>", "Override Copilot model (e.g. grok-code-fast-1)")
+    .option(
+      "--max-diff-length <n>",
+      "Max diff length in characters before truncation (default from config)"
+    )
+    .option(
+      "--max-diff-tokens <n>",
+      "Max diff size in estimated tokens; caps diff with char limit derived from this"
+    )
     .option("--init", "Show config file template")
     .parse();
 
-  const options = program.opts();
+  const options = program.opts() as CliOptions;
 
   if (options.init) {
     console.log(chalk.cyan("Config template for ~/.commit-ai.json:\n"));
@@ -156,44 +252,12 @@ async function main(): Promise<void> {
   await validateGitRepo();
 
   const config = loadConfig();
+  applyOptionOverrides(options, config);
 
-  if (options.style) {
-    if (!["detailed", "minimal"].includes(options.style)) {
-      console.error(chalk.red("Invalid style. Must be 'detailed' or 'minimal'"));
-      process.exit(1);
-    }
-    config.verbosity = options.style as Config["verbosity"];
-  }
-
-  if (options.elevationThreshold !== undefined) {
-    const n = Number(options.elevationThreshold);
-    if (Number.isNaN(n) || n < 0 || n > 1) {
-      console.error(chalk.red("Invalid elevation-threshold. Must be a number between 0 and 1."));
-      process.exit(1);
-    }
-    config.elevationThreshold = n;
-  }
-  if (options.importCollapse === false) {
-    config.importCollapse = false;
-  }
-
-  if (options.all) {
-    await stageAllChanges();
-    if (options.verbose) {
-      console.log(chalk.gray("Staged all changes"));
-    }
-  }
-
-  const diff = await getGitDiff({ ignoreWhitespace: config.ignoreWhitespaceInDiff });
-
-  if (!diff.staged || diff.stagedFiles.length === 0) {
-    console.log(chalk.yellow("No staged changes found."));
-    console.log(chalk.gray("Stage changes with: git add <files>"));
-    console.log(chalk.gray("Or use: commit-ai --all to stage and commit all changes"));
-    process.exit(0);
-  }
-
-  const context = await gatherContext();
+  const { diff, context, truncatedDiff, wasTruncated } = await prepareDiffAndContext(
+    config,
+    options
+  );
 
   if (options.verbose) {
     console.log(chalk.gray(`Files to commit: ${diff.stagedFiles.join(", ")}\n`));
@@ -206,77 +270,111 @@ async function main(): Promise<void> {
 
   const client = new CopilotClient({ logLevel: "error" });
   const generator = new CommitGenerator(client);
-  const progressRef = { current: "connecting" };
+  const progressRef = { current: INITIAL_PROGRESS_PHASE };
 
-  // Non-interactive modes: --yes or --dry-run
+  process.on("SIGINT", () => {
+    generator.stop().then(() => process.exit(130));
+  });
+
   const isNonInteractive = options.yes || options.dryRun;
 
-  if (isNonInteractive) {
-    try {
-      const message = await generateMessageNonInteractive(
-        generator,
-        diff.staged,
-        config,
-        context,
-        progressRef,
-        diff.stat
-      );
-
-      if (options.explain) {
-        console.log(chalk.cyan("Files changed:"));
-        diff.stagedFiles.forEach((file) => {
-          console.log(chalk.gray(`  • ${file}`));
-        });
-        console.log("");
-      }
-
-      if (options.dryRun) {
-        console.log(chalk.gray("(dry-run mode - no commit created)"));
-        await generator.stop();
-        process.exit(0);
-      }
-
-      if (options.yes) {
-        await doCommit(message.fullMessage, generator);
-        process.exit(0);
-      }
-    } catch (error) {
-      console.error(chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`));
-      reportError(error);
-      await generator.stop();
-      process.exit(1);
-    }
-  } else {
-    // Interactive mode: render Ink dashboard
-    try {
-      const { waitUntilExit } = render(
-        React.createElement(Dashboard, {
-          diff: diff.staged,
-          diffStat: diff.stat,
-          diffTruncated: diff.staged.length > getEffectiveDiffLimit(config),
+  try {
+    if (isNonInteractive) {
+      try {
+        const message = await generateMessageNonInteractive(
+          generator,
+          truncatedDiff,
           config,
           context,
-          generator,
+          progressRef,
+          diff.stat,
+          true,
+          wasTruncated
+        );
+
+        if (options.explain) {
+          console.log(chalk.cyan("Files changed:"));
+          diff.stagedFiles.forEach((file) => {
+            console.log(chalk.gray(`  • ${file}`));
+          });
+          console.log("");
+        }
+
+        if (options.dryRun) {
+          console.log(chalk.gray("(dry-run mode - no commit created)"));
+          await generator.stop();
+          process.exit(0);
+        }
+
+        if (options.yes) {
+          await doCommit(message.fullMessage, generator);
+          process.exit(0);
+        }
+      } catch (error) {
+        console.error(chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`));
+        reportError(error);
+        await generator.stop();
+        process.exit(1);
+      }
+    } else {
+      try {
+        const { render } = await import("ink");
+        const React = (await import("react")).default;
+        const { Dashboard } = await import("@ui/features/dashboard");
+        const { ErrorBoundary } = await import("@ui/components/ErrorBoundary");
+        const { CommitProvider } = await import("@ui/context/CommitContext");
+
+        const dashboardProps = {
+          diff: truncatedDiff,
+          diffStat: diff.stat,
+          diffTruncated: wasTruncated,
           files: diff.stagedFiles,
           version: VERSION,
+          showFiles: Boolean(options.explain),
+          progressRef,
           onComplete: () => {
             process.exit(0);
           },
           onError: (error: Error) => {
-            console.error(chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`));
-            reportError(error);
-            process.exit(1);
+            generator.stop().then(() => {
+              console.error(
+                chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`)
+              );
+              reportError(error);
+              process.exit(1);
+            });
           },
-        })
-      );
+        };
+        const { waitUntilExit } = render(
+          React.createElement(ErrorBoundary, {
+            onError: (error: Error) => {
+              generator.stop().then(() => {
+                console.error(
+                  chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`)
+                );
+                reportError(error);
+                process.exit(1);
+              });
+            },
+            children: React.createElement(CommitProvider, {
+              config,
+              context,
+              generator,
+              children: React.createElement(Dashboard, dashboardProps),
+            }),
+          })
+        );
 
-      await waitUntilExit();
-    } catch (error) {
-      console.error(chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`));
-      reportError(error);
-      await generator.stop();
-      process.exit(1);
+        await waitUntilExit();
+      } catch (error) {
+        console.error(chalk.gray(`Stopped after ${progressStepToLabel(progressRef.current)}.`));
+        reportError(error);
+        await generator.stop();
+        process.exit(1);
+      }
     }
+  } finally {
+    await generator.stop();
   }
 }
 

@@ -60,13 +60,26 @@ export function getEffectiveDiffLimit(config: Config): number {
 }
 
 /**
+ * Options for buildUserPrompt when diff is already truncated (e.g. by CLI).
+ * When set, getSmartDiff is not called and diff is used as content.
+ */
+export interface BuildUserPromptOptions {
+  /** When true, use diff as-is as content and do not call getSmartDiff */
+  alreadyTruncated?: boolean;
+  /** When alreadyTruncated is true, whether the diff was truncated (for the note) */
+  wasTruncated?: boolean;
+}
+
+/**
  * Builds the user prompt with diff, context, and config-specific instructions.
  * When stat is provided, it is prepended so the model sees a high-level summary of changed files.
- * @param diff - Staged diff (may be truncated by getSmartDiff)
+ * When options.alreadyTruncated is true, diff is used as content and getSmartDiff is skipped.
+ * @param diff - Staged diff (or pre-truncated content when alreadyTruncated)
  * @param config - Generation config (verbosity, conventional, scope, etc.)
  * @param context - Optional recent commits and branch
  * @param customInstruction - Optional user instruction for regeneration
  * @param stat - Optional output of `git diff --staged --stat`
+ * @param options - Optional; when alreadyTruncated, skip getSmartDiff and use wasTruncated for note
  * @returns Full user prompt string
  */
 export function buildUserPrompt(
@@ -74,10 +87,21 @@ export function buildUserPrompt(
   config: Config,
   context?: CommitContext,
   customInstruction?: string,
-  stat?: string
+  stat?: string,
+  options?: BuildUserPromptOptions
 ): string {
-  const effectiveLimit = getEffectiveDiffLimit(config);
-  const { content, wasTruncated } = getSmartDiff(diff, stat, config, effectiveLimit);
+  let content: string;
+  let wasTruncated: boolean;
+
+  if (options?.alreadyTruncated) {
+    content = diff;
+    wasTruncated = options.wasTruncated ?? false;
+  } else {
+    const effectiveLimit = getEffectiveDiffLimit(config);
+    const result = getSmartDiff(diff, stat, config, effectiveLimit);
+    content = result.content;
+    wasTruncated = result.wasTruncated;
+  }
 
   let prompt = "";
   if (stat) {

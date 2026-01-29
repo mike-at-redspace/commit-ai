@@ -1,7 +1,7 @@
 import { CopilotClient } from "@github/copilot-sdk";
 import type { Config, GeneratedMessage, CommitContext, GenerateProgressPhase } from "@core/config";
 import { EMOJI_MAP, COPILOT_SESSION_TIMEOUT } from "@core/config";
-import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
+import { SYSTEM_PROMPT, buildUserPrompt, type BuildUserPromptOptions } from "./prompt.js";
 
 /**
  * Parses raw AI output into a structured commit message.
@@ -86,6 +86,7 @@ export class CommitGenerator {
    * @param onProgress - Optional callback for phase changes
    * @param modelOverride - Optional model id (e.g. premium); uses one-off session
    * @param diffStat - Optional output of `git diff --staged --stat`
+   * @param promptOptions - Optional; when alreadyTruncated, diff is used as-is and getSmartDiff is skipped
    * @returns The parsed commit message
    * @throws Error when generation or session fails
    */
@@ -97,9 +98,17 @@ export class CommitGenerator {
     onChunk?: (chunk: string) => void,
     onProgress?: (phase: GenerateProgressPhase) => void,
     modelOverride?: string,
-    diffStat?: string
+    diffStat?: string,
+    promptOptions?: BuildUserPromptOptions
   ): Promise<GeneratedMessage> {
-    const prompt = buildUserPrompt(diff, config, context, customInstruction, diffStat);
+    const prompt = buildUserPrompt(
+      diff,
+      config,
+      context,
+      customInstruction,
+      diffStat,
+      promptOptions
+    );
 
     try {
       if (modelOverride) {

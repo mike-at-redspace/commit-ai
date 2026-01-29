@@ -81,10 +81,15 @@ export const PROGRESS_SPINNER_LABELS: Record<string, string> = {
 };
 
 /**
+ * Initial progress phase before any generation step (used for progressRef and error reporting).
+ */
+export const INITIAL_PROGRESS_PHASE = "connecting";
+
+/**
  * User-facing labels for "Stopped after X" error context in CLI
  */
 export const PROGRESS_STEP_LABELS: Record<string, string> = {
-  connecting: "connecting to Copilot",
+  [INITIAL_PROGRESS_PHASE]: "connecting to Copilot",
   session: "creating Copilot session",
   sending: "sending diff",
   streaming: "generating message",

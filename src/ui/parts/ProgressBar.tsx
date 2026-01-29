@@ -21,13 +21,7 @@ interface ProgressBarProps {
  * @param props.status - Status text (e.g. "Committing...")
  * @param props.hint - Hint text when ready and no error/status (e.g. truncated diff hint)
  */
-export function ProgressBar({
-  phase,
-  isGenerating,
-  error,
-  status,
-  hint,
-}: ProgressBarProps) {
+export function ProgressBar({ phase, isGenerating, error, status, hint }: ProgressBarProps) {
   if (error) {
     return (
       <Box paddingX={1} marginTop={1}>

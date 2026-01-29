@@ -15,12 +15,7 @@ import {
   getCurrentBranch,
 } from "./git.js";
 import { CommitGenerator } from "./ai.js";
-import type {
-  Config,
-  CommitContext,
-  GeneratedMessage,
-  GenerateProgressPhase,
-} from "./types.js";
+import type { Config, CommitContext, GeneratedMessage, GenerateProgressPhase } from "./types.js";
 import { Dashboard } from "./ui/Dashboard.js";
 import { getEffectiveDiffLimit } from "./prompt.js";
 import { PROGRESS_STEP_LABELS, VERSION } from "./constants.js";

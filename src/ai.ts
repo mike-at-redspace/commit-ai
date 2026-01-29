@@ -1,10 +1,5 @@
 import { CopilotClient } from "@github/copilot-sdk";
-import type {
-  Config,
-  GeneratedMessage,
-  CommitContext,
-  GenerateProgressPhase,
-} from "./types.js";
+import type { Config, GeneratedMessage, CommitContext, GenerateProgressPhase } from "./types.js";
 import { EMOJI_MAP, COPILOT_SESSION_TIMEOUT } from "./constants.js";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
 

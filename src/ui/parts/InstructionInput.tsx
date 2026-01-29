@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Box, Text } from "ink";
 import TextInput from "ink-text-input";
 
-interface CustomInstructionInputProps {
+interface InstructionInputProps {
   onSubmit: (instruction: string) => void;
   onCancel: () => void;
 }
@@ -12,7 +12,7 @@ interface CustomInstructionInputProps {
  * @param props.onSubmit - Callback with trimmed instruction when user submits
  * @param props.onCancel - Callback when user cancels (empty submit)
  */
-export function CustomInstructionInput({ onSubmit, onCancel }: CustomInstructionInputProps) {
+export function InstructionInput({ onSubmit, onCancel }: InstructionInputProps) {
   const [value, setValue] = useState("");
 
   return (

@@ -4,7 +4,7 @@ import SelectInput from "ink-select-input";
 import type { RegenerateStyle } from "../../types.js";
 import { STYLES } from "../../constants.js";
 
-interface StyleMenuProps {
+interface StyleOptionsMenuProps {
   onSelect: (style: RegenerateStyle) => void;
 }
 
@@ -12,7 +12,7 @@ interface StyleMenuProps {
  * Regenerate-style selection: same, detailed, minimal, premium, or custom instruction.
  * @param props.onSelect - Callback when a style is selected
  */
-export function StyleMenu({ onSelect }: StyleMenuProps) {
+export function StyleOptionsMenu({ onSelect }: StyleOptionsMenuProps) {
   return (
     <Box flexDirection="column" paddingX={1} marginTop={1}>
       <Text color="cyan">? Regenerate with different style?</Text>

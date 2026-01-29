@@ -1,9 +1,6 @@
 import { spawn } from "child_process";
-import type { GitDiff } from "./types.js";
+import type { GitDiff, GitExecutor, GetGitDiffOptions } from "./types.js";
 import { MAX_GIT_BUFFER_SIZE, DEFAULT_RECENT_COMMITS_COUNT } from "./constants.js";
-
-/** Executor that runs a shell command and returns stdout; used for tests and default spawn. */
-export type GitExecutor = (command: string, options?: { input?: string }) => Promise<string>;
 
 let executor: GitExecutor = defaultExecutor;
 
@@ -75,11 +72,6 @@ export async function isGitRepository(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export interface GetGitDiffOptions {
-  /** When true, use `git diff --staged -w` to ignore whitespace-only changes */
-  ignoreWhitespace?: boolean;
 }
 
 /**

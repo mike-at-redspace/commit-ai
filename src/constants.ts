@@ -1,4 +1,5 @@
 import pkg from "../package.json" with { type: "json" };
+import type { Action, RegenerateStyle } from "./types.js";
 
 /**
  * Maximum buffer size for git diff operations (10MB)
@@ -108,3 +109,23 @@ export const STATUS_COMMITTING = "Committing...";
  * Status text shown when user cancels
  */
 export const STATUS_CANCELLED = "Cancelled";
+
+/**
+ * Commit / Regenerate / Cancel action choices (label and value)
+ */
+export const ACTIONS: { label: string; value: Action }[] = [
+  { label: "✓ Commit", value: "commit" },
+  { label: "↻ Regenerate", value: "regenerate" },
+  { label: "✕ Cancel", value: "cancel" },
+];
+
+/**
+ * Regenerate-style options (label and value)
+ */
+export const STYLES: { label: string; value: RegenerateStyle }[] = [
+  { label: "Same style", value: "same" },
+  { label: "More detailed", value: "detailed" },
+  { label: "More concise", value: "minimal" },
+  { label: "Retry with premium model", value: "premium" },
+  { label: "Custom instruction...", value: "custom" },
+];

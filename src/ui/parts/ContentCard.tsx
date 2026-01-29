@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 
-interface MessageCardProps {
+interface ContentCardProps {
   message: string;
   isStreaming: boolean;
 }
@@ -11,7 +11,7 @@ interface MessageCardProps {
  * @param props.message - Commit message text (subject + optional body)
  * @param props.isStreaming - When true, show streaming border (yellow)
  */
-export function MessageCard({ message, isStreaming }: MessageCardProps) {
+export function ContentCard({ message, isStreaming }: ContentCardProps) {
   const borderColor = isStreaming ? "yellow" : "white";
   const lines = message.split("\n");
   const subject = lines[0] || "";

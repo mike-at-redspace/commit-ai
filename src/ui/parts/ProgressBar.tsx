@@ -4,7 +4,7 @@ import Spinner from "ink-spinner";
 import type { GenerateProgressPhase } from "../../types.js";
 import { PROGRESS_SPINNER_LABELS } from "../../constants.js";
 
-interface StatusBarProps {
+interface ProgressBarProps {
   phase?: GenerateProgressPhase;
   isGenerating: boolean;
   error?: string;
@@ -21,7 +21,13 @@ interface StatusBarProps {
  * @param props.status - Status text (e.g. "Committing...")
  * @param props.hint - Hint text when ready and no error/status (e.g. truncated diff hint)
  */
-export function StatusBar({ phase, isGenerating, error, status, hint }: StatusBarProps) {
+export function ProgressBar({
+  phase,
+  isGenerating,
+  error,
+  status,
+  hint,
+}: ProgressBarProps) {
   if (error) {
     return (
       <Box paddingX={1} marginTop={1}>

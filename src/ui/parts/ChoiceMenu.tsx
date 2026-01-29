@@ -4,7 +4,7 @@ import SelectInput from "ink-select-input";
 import type { Action } from "../../types.js";
 import { ACTIONS } from "../../constants.js";
 
-interface ActionMenuProps {
+interface ChoiceMenuProps {
   onSelect: (action: Action) => void;
   disabled?: boolean;
 }
@@ -14,7 +14,7 @@ interface ActionMenuProps {
  * @param props.onSelect - Callback when an action is selected
  * @param props.disabled - When true, renders nothing
  */
-export function ActionMenu({ onSelect, disabled = false }: ActionMenuProps) {
+export function ChoiceMenu({ onSelect, disabled = false }: ChoiceMenuProps) {
   if (disabled) {
     return null;
   }

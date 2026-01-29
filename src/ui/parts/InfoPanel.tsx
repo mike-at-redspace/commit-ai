@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 
-interface ContextPanelProps {
+interface InfoPanelProps {
   files: string[];
   showFiles?: boolean;
 }
@@ -11,7 +11,7 @@ interface ContextPanelProps {
  * @param props.files - List of staged file paths
  * @param props.showFiles - When true, show up to 10 file names
  */
-export function ContextPanel({ files, showFiles = false }: ContextPanelProps) {
+export function InfoPanel({ files, showFiles = false }: InfoPanelProps) {
   const fileCount = files.length;
   const displayFiles = showFiles ? files.slice(0, 10) : [];
   const hasMore = files.length > 10;

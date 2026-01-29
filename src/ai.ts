@@ -1,5 +1,10 @@
 import { CopilotClient } from "@github/copilot-sdk";
-import type { Config, GeneratedMessage, CommitContext } from "./types.js";
+import type {
+  Config,
+  GeneratedMessage,
+  CommitContext,
+  GenerateProgressPhase,
+} from "./types.js";
 import { EMOJI_MAP, COPILOT_SESSION_TIMEOUT } from "./constants.js";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompt.js";
 
@@ -60,9 +65,6 @@ export function parseCommitMessage(raw: string, config: Config): GeneratedMessag
 
   return { subject, body, type, scope, fullMessage };
 }
-
-/** Progress phases reported during generation */
-export type GenerateProgressPhase = "session" | "sending" | "streaming";
 
 /**
  * Generates commit messages using a Copilot client.

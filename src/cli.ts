@@ -15,9 +15,13 @@ import {
   getCurrentBranch,
 } from "./git.js";
 import { CommitGenerator } from "./ai.js";
-import type { Config, CommitContext, GeneratedMessage } from "./types.js";
-import type { GenerateProgressPhase } from "./ai.js";
-import { CommitDashboard } from "./ui/CommitDashboard.js";
+import type {
+  Config,
+  CommitContext,
+  GeneratedMessage,
+  GenerateProgressPhase,
+} from "./types.js";
+import { Dashboard } from "./ui/Dashboard.js";
 import { getEffectiveDiffLimit } from "./prompt.js";
 import { PROGRESS_STEP_LABELS, VERSION } from "./constants.js";
 
@@ -252,7 +256,7 @@ async function main(): Promise<void> {
     // Interactive mode: render Ink dashboard
     try {
       const { waitUntilExit } = render(
-        React.createElement(CommitDashboard, {
+        React.createElement(Dashboard, {
           diff: diff.staged,
           diffStat: diff.stat,
           diffTruncated: diff.staged.length > getEffectiveDiffLimit(config),

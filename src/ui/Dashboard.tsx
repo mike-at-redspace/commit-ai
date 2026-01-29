@@ -1,19 +1,25 @@
 import React, { useState, useCallback, useRef } from "react";
 import { Box } from "ink";
-import { Header } from "./components/Header.js";
-import { ContextPanel } from "./components/ContextPanel.js";
-import { MessageCard } from "./components/MessageCard.js";
-import { ActionMenu, type Action } from "./components/ActionMenu.js";
-import { StatusBar } from "./components/StatusBar.js";
-import { StyleMenu, type RegenerateStyle } from "./components/StyleMenu.js";
-import { CustomInstructionInput } from "./components/CustomInstructionInput.js";
+import { Header } from "./parts/Header.js";
+import { InfoPanel } from "./parts/InfoPanel.js";
+import { ContentCard } from "./parts/ContentCard.js";
+import { ChoiceMenu } from "./parts/ChoiceMenu.js";
+import { ProgressBar } from "./parts/ProgressBar.js";
+import { StyleOptionsMenu } from "./parts/StyleOptionsMenu.js";
+import { InstructionInput } from "./parts/InstructionInput.js";
 import { useRunOnceOnMount } from "./hooks/useRunOnceOnMount.js";
-import type { Config, CommitContext } from "../types.js";
-import type { CommitGenerator, GenerateProgressPhase } from "../ai.js";
+import type {
+  Config,
+  CommitContext,
+  Action,
+  RegenerateStyle,
+  GenerateProgressPhase,
+} from "../types.js";
+import type { CommitGenerator } from "../ai.js";
 import { commit } from "../git.js";
 import { DEFAULT_PREMIUM_MODEL, STATUS_CANCELLED, STATUS_COMMITTING } from "../constants.js";
 
-interface CommitDashboardProps {
+interface DashboardProps {
   diff: string;
   /** Output of `git diff --staged --stat` for high-level summary when diff is truncated */
   diffStat?: string;
@@ -50,7 +56,7 @@ type ViewState =
  * @param props.onComplete - Called on successful commit or cancel
  * @param props.onError - Called on generation or commit error
  */
-export function CommitDashboard({
+export function Dashboard({
   diff,
   diffStat,
   diffTruncated,
@@ -61,7 +67,7 @@ export function CommitDashboard({
   version,
   onComplete,
   onError,
-}: CommitDashboardProps) {
+}: DashboardProps) {
   const [message, setMessage] = useState<string>("");
   const [fullMessage, setFullMessage] = useState<string>("");
   const [phase, setPhase] = useState<GenerateProgressPhase>("session");
@@ -210,9 +216,9 @@ export function CommitDashboard({
   return (
     <Box borderStyle="round" borderColor="green" padding={1} flexDirection="column">
       <Header branch={context.branch || "unknown"} version={version} />
-      <ContextPanel files={files} showFiles={false} />
-      <MessageCard message={message} isStreaming={isGenerating && phase === "streaming"} />
-      <StatusBar
+      <InfoPanel files={files} showFiles={false} />
+      <ContentCard message={message} isStreaming={isGenerating && phase === "streaming"} />
+      <ProgressBar
         phase={isGenerating ? phase : undefined}
         isGenerating={isGenerating}
         error={error}
@@ -229,14 +235,14 @@ export function CommitDashboard({
             : undefined
         }
       />
-      {showStyleMenu && <StyleMenu onSelect={handleStyleSelect} />}
+      {showStyleMenu && <StyleOptionsMenu onSelect={handleStyleSelect} />}
       {showCustomInput && (
-        <CustomInstructionInput
+        <InstructionInput
           onSubmit={handleCustomInstruction}
           onCancel={handleCancelCustomInstruction}
         />
       )}
-      {showMenu && <ActionMenu onSelect={handleAction} />}
+      {showMenu && <ChoiceMenu onSelect={handleAction} />}
     </Box>
   );
 }

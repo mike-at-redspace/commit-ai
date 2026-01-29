@@ -71,3 +71,21 @@ export interface CommitContext {
   /** Current branch name */
   branch?: string;
 }
+
+/** Progress phases reported during generation */
+export type GenerateProgressPhase = "session" | "sending" | "streaming";
+
+/** User action when message is ready: commit, regenerate, or cancel */
+export type Action = "commit" | "regenerate" | "cancel";
+
+/** Regeneration style: same, detailed, minimal, premium, or custom instruction */
+export type RegenerateStyle = "same" | "detailed" | "minimal" | "premium" | "custom";
+
+/** Executor that runs a shell command and returns stdout; used for tests and default spawn. */
+export type GitExecutor = (command: string, options?: { input?: string }) => Promise<string>;
+
+/** Options for getGitDiff */
+export interface GetGitDiffOptions {
+  /** When true, use `git diff --staged -w` to ignore whitespace-only changes */
+  ignoreWhitespace?: boolean;
+}

@@ -46,8 +46,8 @@ When you pick **Regenerate**, you get:
 | **Same style**               | Regenerates with your current config (and reuses your last custom instruction if you had one).                                                    |
 | **More detailed**            | Asks for a body that explains the changes, rationale, and impact.                                                                                 |
 | **More concise**             | Subject line only, no body.                                                                                                                       |
-| **Retry with premium model** | Uses your configured premium model (default `sonnet-3.5`) in a one-off session, then discards it. Handy when the default model isn’t quite right. |
-| **Custom instruction…**      | Type free-form instructions (e.g. “add BREAKING CHANGE: …”); they’re appended to the prompt and take precedence.                                  |
+| **Retry with premium model** | Uses your configured premium model (default `sonnet-3.5`) in a one-off session, then discards it. Handy when the default model isn't quite right. |
+| **Custom instruction…**      | Type free-form instructions (e.g. "add BREAKING CHANGE: …"); they're appended to the prompt and take precedence.                                  |
 
 ### Flags
 
@@ -88,22 +88,22 @@ Put `.commit-ai.json` in your project root or home dir:
 ```
 
 | Option                       | Default            | Description                                                                                                                                                                                                                                         |
-| ---------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| ---------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model`                      | `grok-code-fast-1` | Copilot model used for generation. Overridden by `COMMIT_AI_MODEL` (see below).                                                                                                                                                                     |
-| `premiumModel`               | `sonnet-3.5`       | Model used when you choose “Retry with premium model” in the UI. Not affected by `COMMIT_AI_MODEL`.                                                                                                                                                 |
+| `premiumModel`               | `sonnet-3.5`       | Model used when you choose "Retry with premium model" in the UI. Not affected by `COMMIT_AI_MODEL`.                                                                                                                                                 |
 | `conventionalCommit`         | `true`             | Use `feat:`, `fix:`, etc.                                                                                                                                                                                                                           |
 | `includeScope`               | `true`             | e.g. `feat(auth):`.                                                                                                                                                                                                                                 |
 | `includeEmoji`               | `false`            | When `true`, prefix the subject with a type-specific emoji: feat → ✨, fix → 🐛, refactor → ♻️, docs → 📝, style → 💄, test → ✅, chore → 🔧, perf → ⚡, ci → 👷, build → 📦.                                                                       |
 | `maxSubjectLength`           | `72`               | Max length for the subject line.                                                                                                                                                                                                                    |
-| `verbosity`                  | `normal`           | `minimal` (subject only) \| `normal` \| `detailed` (body with rationale).                                                                                                                                                                           |
+| `verbosity`                  | `normal`           | `minimal` (subject only), `normal`, or `detailed` (body with rationale).                                                                                                                                                                           |
 | `maxDiffLength`              | `8000`             | Max diff size in **characters** before truncation. Increase for larger diffs (e.g. 32000); models like Copilot Chat support ~64K tokens, premium models more.                                                                                       |
 | `maxDiffTokens`              | _(unset)_          | Optional. Max diff size in **tokens** (approximated from chars). When set, the effective limit is the smaller of `maxDiffLength` and this token budget. Useful to stay within model context (e.g. 12000–16000 for default model, more for premium). |
 | `ignoreWhitespaceInDiff`     | `false`            | When `true`, run `git diff --staged -w` so whitespace-only changes are ignored in the prompt.                                                                                                                                                       |
 | `preferPremiumForLargeDiffs` | `false`            | When `true`, use the premium model for the **first** generation when the diff exceeds the limit (truncated). The UI still suggests "Retry with premium model" when truncated.                                                                       |
 | `elevationThreshold`         | `0.8`              | When the fraction of changed lines in low-priority files (e.g. data JSON, lockfiles) exceeds this, those files are elevated so they are fully or summarily included instead of dropped.                                                             |
 | `elevationMinLines`          | _(unset)_          | Optional. Only consider elevation when total changed lines across all files is at least this (e.g. 50).                                                                                                                                             |
-| `languageImportPatterns`     | _(built-in)_       | Optional. Map of language id to regex string for import detection (e.g. `{"python": "^(import \\                                                                                                                                                    | from .+ import )", "rust": "^use \\s+"}`). Used for import collapsing; defaults cover JS/TS, Python, Rust, Go. |
-| `importCollapse`             | `true`             | When `true`, consecutive import lines in each file’s diff are collapsed to a single placeholder (e.g. “… 3 import lines …”) to save tokens. Set to `false` or use `--no-import-collapse` to disable.                                                |
+| `languageImportPatterns`     | _(built-in)_       | Optional. Map of language id to regex string for import detection (e.g. `{"python": "^(import \\|from .+ import )", "rust": "^use \\s+"}`). Used for import collapsing; defaults cover JS/TS, Python, Rust, Go. |
+| `importCollapse`             | `true`             | When `true`, consecutive import lines in each file's diff are collapsed to a single placeholder (e.g. "… 3 import lines …") to save tokens. Set to `false` or use `--no-import-collapse` to disable.                                                |
 
 **Environment variable**
 
@@ -129,7 +129,7 @@ If your staged diff is very large:
 
 ## How it works
 
-Rough flow from “run the CLI” to “commit or exit”:
+Rough flow from "run the CLI" to "commit or exit":
 
 ```mermaid
 flowchart TB
@@ -163,7 +163,7 @@ flowchart TB
 
 - **Run locally:** `pnpm run dev` runs `tsx src/cli.ts` — no build step; edits in `src/` apply on the next run.
 - **Tests:** `pnpm test` runs the Vitest suite.
-- **Session reuse:** The app keeps a single Copilot session and reuses it for Regenerate (same/detailed/minimal/custom), so the system prompt is sent once and regeneration is faster. “Retry with premium model” uses a separate temporary session and then discards it.
+- **Session reuse:** The app keeps a single Copilot session and reuses it for Regenerate (same/detailed/minimal/custom), so the system prompt is sent once and regeneration is faster. "Retry with premium model" uses a separate temporary session and then discards it.
 
 ## FAQ
 
@@ -174,7 +174,7 @@ Yes. It sends your staged diff to Copilot, same as Copilot in your editor.
 No. It depends on the Copilot CLI and an active subscription.
 
 **Breaking changes / footers?**  
-Use Regenerate with a custom instruction (e.g. “add BREAKING CHANGE: …”) or commit with `-y` and amend with `git commit --amend`.
+Use Regenerate with a custom instruction (e.g. "add BREAKING CHANGE: …") or commit with `-y` and amend with `git commit --amend`.
 
 ## License
 

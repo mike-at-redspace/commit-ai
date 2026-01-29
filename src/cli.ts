@@ -7,7 +7,6 @@ import { loadConfig, getConfigTemplate } from "@core/config";
 import {
   isGitRepository,
   getGitDiff,
-  getSmartDiff,
   stageAllChanges,
   commit,
   getRecentCommits,
@@ -86,7 +85,7 @@ async function gatherContext(): Promise<CommitContext> {
 
 /**
  * Non-interactive generation for --yes and --dry-run modes.
- * Uses runGenerateMessage with stdout callbacks; diff is expected to be pre-truncated.
+ * Uses runGenerateMessage with stdout callbacks; full diff is passed so the generator applies three-tier flow.
  */
 async function generateMessageNonInteractive(
   generator: CommitGenerator,
@@ -94,9 +93,7 @@ async function generateMessageNonInteractive(
   config: Config,
   context: CommitContext,
   progressRef: { current: string },
-  diffStat?: string,
-  alreadyTruncated?: boolean,
-  wasTruncated?: boolean
+  diffStat?: string
 ): Promise<Awaited<ReturnType<typeof runGenerateMessage>>> {
   const message = await runGenerateMessage(generator, diff, config, context, {
     diffStat,
@@ -104,8 +101,6 @@ async function generateMessageNonInteractive(
     onProgress: (phase: GenerateProgressPhase) => {
       progressRef.current = phase;
     },
-    alreadyTruncated,
-    wasTruncated,
   });
   console.log(""); // New line after message
   return message;
@@ -176,7 +171,8 @@ function applyOptionOverrides(options: CliOptions, config: Config): void {
 }
 
 /**
- * Stages changes if requested, loads diff and context, and computes truncated diff. Exits when no staged changes.
+ * Stages changes if requested, loads diff and context. Exits when no staged changes.
+ * Returns full diff so the generator can apply three-tier flow (small / smart diff / summarization).
  */
 async function prepareDiffAndContext(
   config: Config,
@@ -184,8 +180,6 @@ async function prepareDiffAndContext(
 ): Promise<{
   diff: Awaited<ReturnType<typeof getGitDiff>>;
   context: CommitContext;
-  truncatedDiff: string;
-  wasTruncated: boolean;
 }> {
   if (options.all) {
     await stageAllChanges();
@@ -204,15 +198,7 @@ async function prepareDiffAndContext(
   }
 
   const context = await gatherContext();
-  const effectiveLimit = getEffectiveDiffLimit(config);
-  const { content: truncatedDiff, wasTruncated } = getSmartDiff(
-    diff.staged,
-    diff.stat,
-    config,
-    effectiveLimit
-  );
-
-  return { diff, context, truncatedDiff, wasTruncated };
+  return { diff, context };
 }
 
 /**
@@ -260,10 +246,9 @@ async function main(): Promise<void> {
   const config = loadConfig();
   applyOptionOverrides(options, config);
 
-  const { diff, context, truncatedDiff, wasTruncated } = await prepareDiffAndContext(
-    config,
-    options
-  );
+  const { diff, context } = await prepareDiffAndContext(config, options);
+  const effectiveLimit = getEffectiveDiffLimit(config);
+  const diffTruncated = diff.staged.length > effectiveLimit;
 
   if (options.verbose) {
     console.log(chalk.gray(`Files to commit: ${diff.stagedFiles.join(", ")}\n`));
@@ -289,13 +274,11 @@ async function main(): Promise<void> {
       try {
         const message = await generateMessageNonInteractive(
           generator,
-          truncatedDiff,
+          diff.staged,
           config,
           context,
           progressRef,
-          diff.stat,
-          true,
-          wasTruncated
+          diff.stat
         );
 
         if (options.explain) {
@@ -341,9 +324,9 @@ async function main(): Promise<void> {
         const { CommitProvider } = await import("@ui/context/CommitContext");
 
         const dashboardProps = {
-          diff: truncatedDiff,
+          diff: diff.staged,
           diffStat: diff.stat,
-          diffTruncated: wasTruncated,
+          diffTruncated,
           files: diff.stagedFiles,
           version: VERSION,
           showFiles: Boolean(options.explain),

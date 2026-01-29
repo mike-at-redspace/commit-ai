@@ -98,9 +98,14 @@ export function buildUserPrompt(
     wasTruncated = options.wasTruncated ?? false;
   } else {
     const effectiveLimit = getEffectiveDiffLimit(config);
-    const result = getSmartDiff(diff, stat, config, effectiveLimit);
-    content = result.content;
-    wasTruncated = result.wasTruncated;
+    if (diff.length <= effectiveLimit) {
+      content = diff;
+      wasTruncated = false;
+    } else {
+      const result = getSmartDiff(diff, stat, config, effectiveLimit);
+      content = result.content;
+      wasTruncated = result.wasTruncated;
+    }
   }
 
   let prompt = "";

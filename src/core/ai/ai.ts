@@ -1,7 +1,14 @@
 import { CopilotClient } from "@github/copilot-sdk";
 import type { Config, GeneratedMessage, CommitContext, GenerateProgressPhase } from "@core/config";
 import { EMOJI_MAP, COPILOT_SESSION_TIMEOUT } from "@core/config";
-import { SYSTEM_PROMPT, buildUserPrompt, type BuildUserPromptOptions } from "./prompt.js";
+import { prepareDiffForSummarization, getSmartDiff } from "@core/git";
+import {
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  getEffectiveDiffLimit,
+  type BuildUserPromptOptions,
+} from "./prompt.js";
+import { summarizeDiff } from "./summarizer.js";
 
 /**
  * Parses raw AI output into a structured commit message.
@@ -101,14 +108,42 @@ export class CommitGenerator {
     diffStat?: string,
     promptOptions?: BuildUserPromptOptions
   ): Promise<GeneratedMessage> {
-    const prompt = buildUserPrompt(
-      diff,
-      config,
-      context,
-      customInstruction,
-      diffStat,
-      promptOptions
-    );
+    const effectiveLimit = getEffectiveDiffLimit(config);
+    let prompt: string;
+
+    if (promptOptions?.alreadyTruncated) {
+      prompt = buildUserPrompt(diff, config, context, customInstruction, diffStat, promptOptions);
+    } else if (diff.length <= effectiveLimit) {
+      prompt = buildUserPrompt(diff, config, context, customInstruction, diffStat);
+    } else {
+      const result = getSmartDiff(diff, diffStat, config, effectiveLimit);
+      if (!result.wasTruncated) {
+        prompt = buildUserPrompt(result.content, config, context, customInstruction, diffStat, {
+          alreadyTruncated: true,
+          wasTruncated: false,
+        });
+      } else if (config.useSummarizationForLargeDiffs !== false) {
+        onProgress?.("summarizing");
+        try {
+          const preparedDiff = prepareDiffForSummarization(diff, config);
+          const summary = await summarizeDiff(this.client, preparedDiff, config, effectiveLimit);
+          prompt = buildUserPrompt(summary, config, context, customInstruction, diffStat, {
+            alreadyTruncated: true,
+            wasTruncated: true,
+          });
+        } catch {
+          prompt = buildUserPrompt(result.content, config, context, customInstruction, diffStat, {
+            alreadyTruncated: true,
+            wasTruncated: true,
+          });
+        }
+      } else {
+        prompt = buildUserPrompt(result.content, config, context, customInstruction, diffStat, {
+          alreadyTruncated: true,
+          wasTruncated: true,
+        });
+      }
+    }
 
     try {
       if (modelOverride) {

@@ -121,8 +121,6 @@ export function Dashboard({
           onChunk,
           onProgress,
           modelOverride,
-          alreadyTruncated: true,
-          wasTruncated: Boolean(diffTruncated),
         });
 
         if (key === generationKey.current) {

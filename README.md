@@ -82,7 +82,8 @@ Create `.commit-ai.json` in project root or home directory:
   "preferPremiumForLargeDiffs": false,
   "elevationThreshold": 0.8,
   "elevationMinLines": null,
-  "importCollapse": true
+  "importCollapse": true,
+  "useSummarizationForLargeDiffs": true
 }
 ```
 
@@ -108,6 +109,7 @@ Create `.commit-ai.json` in project root or home directory:
 - `maxDiffTokens` — Max diff tokens, if set uses smaller of this and `maxDiffLength`
 - `ignoreWhitespaceInDiff` — Use `git diff -w` (default: `false`)
 - `importCollapse` — Collapse import lines (default: `true`)
+- `useSummarizationForLargeDiffs` — When smart diff truncates, use LLM to summarize the full diff for the commit prompt (default: `true`). Set to `false` to keep truncation-only.
 
 **Smart Prioritization**
 
@@ -120,20 +122,11 @@ Create `.commit-ai.json` in project root or home directory:
 
 ### Large Diffs
 
-Diff processing pipeline:
+Diffs are handled in three tiers so small changes stay fast and huge diffs still get a good commit message:
 
-1. **Sanitize** — Remove merge conflict markers
-2. **Collapse imports** — Group consecutive imports (JS/TS, Python, Rust, Go)
-3. **Prioritize & truncate** — Keep high-priority files, summarize or drop low-priority
-4. **Always include** — `git diff --stat` summary
-
-## Proposed approach (Gemini-style summarizer, commit-focused) WIP
-
-**Three-tier flow:**
-
-1. **Small diff** (length ≤ effective limit): Skip smart diff and summarization — use raw diff as-is in the prompt.
-2. **Large diff** (length > effective limit): Run smart diff (sanitize, collapse, truncate). If the result was **not** truncated, use the smart-diff content.
-3. **Smart diff still large** (i.e. `getSmartDiff` returned `wasTruncated: true`): Run a **single LLM summarization** on the full prepared diff (sanitize + collapse, no truncation), then use that summary in the prompt. No second model or new dependency—reuse the same Copilot client.
+1. **Small diff** (length ≤ limit) — Raw diff is sent as-is. No smart diff or summarization.
+2. **Large diff** (length > limit) — Smart diff runs: sanitize (conflict markers), collapse imports (JS/TS, Python, Rust, Go), then prioritize and truncate. If the result fits, that content is used.
+3. **Smart diff still too large** (truncated) — When `useSummarizationForLargeDiffs` is true (default), a single LLM call summarizes the **full** prepared diff (sanitize + collapse, no truncation) with a commit-focused prompt; that summary is then used for the commit message. If summarization fails or is disabled, the truncated diff is used and the prompt notes that the diff was truncated.
 
 ```mermaid
 flowchart LR
@@ -150,12 +143,7 @@ flowchart LR
   I --> J[Generate commit message]
 ```
 
-**Recommended limits:**
-
-- Default model: 12K–16K tokens (~40K–56K chars)
-- Premium models: 50K+ tokens (~80K+ chars)
-
-**If truncated:** Dashboard suggests "Retry with premium model"
+The dashboard shows "Summarizing large diff..." when the summarizer runs. If the diff was large, "Retry with premium model" is suggested; you can also set `preferPremiumForLargeDiffs: true` to use the premium model automatically for large diffs.
 
 ## Troubleshooting
 

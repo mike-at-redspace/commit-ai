@@ -16,4 +16,5 @@ export {
   pathPriority,
   computeElevatedPaths,
   getSmartDiff,
+  prepareDiffForSummarization,
 } from "./smartDiff.js";

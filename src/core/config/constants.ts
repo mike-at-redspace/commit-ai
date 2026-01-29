@@ -76,6 +76,7 @@ export const LOGO_ANIMATION_COLORS = ["green", "cyan", "blue", "magenta", "yello
  */
 export const PROGRESS_SPINNER_LABELS: Record<string, string> = {
   session: "Creating Copilot session...",
+  summarizing: "Summarizing large diff...",
   sending: "Sending diff to Copilot...",
   streaming: "Generating message...",
 };
@@ -91,6 +92,7 @@ export const INITIAL_PROGRESS_PHASE = "connecting";
 export const PROGRESS_STEP_LABELS: Record<string, string> = {
   [INITIAL_PROGRESS_PHASE]: "connecting to Copilot",
   session: "creating Copilot session",
+  summarizing: "summarizing large diff",
   sending: "sending diff",
   streaming: "generating message",
 };

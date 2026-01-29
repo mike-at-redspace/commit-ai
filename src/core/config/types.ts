@@ -44,6 +44,8 @@ export interface Config {
   languageImportPatterns?: Record<string, string>;
   /** When true (default), collapse consecutive import lines in diffs to save tokens */
   importCollapse?: boolean;
+  /** When true (default), use LLM summarization when smart diff truncates; when false, use truncation only */
+  useSummarizationForLargeDiffs?: boolean;
 }
 
 /**
@@ -73,7 +75,7 @@ export interface CommitContext {
 }
 
 /** Progress phases reported during generation */
-export type GenerateProgressPhase = "session" | "sending" | "streaming";
+export type GenerateProgressPhase = "session" | "summarizing" | "sending" | "streaming";
 
 /** User action when message is ready: commit, regenerate, or cancel */
 export type Action = "commit" | "regenerate" | "cancel";

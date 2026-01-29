@@ -422,3 +422,20 @@ export function getSmartDiff(
 
   return truncateDiff(collapsedDiff, effectiveLimit, elevatedPaths);
 }
+
+/**
+ * Prepares a raw diff for summarization: sanitize + optional import collapse, no truncation.
+ * Use when getSmartDiff returned wasTruncated so the summarizer sees full intent.
+ * @param diff - Raw staged diff
+ * @param config - Generation config (importCollapse, etc.)
+ * @returns Sanitized and optionally import-collapsed full diff
+ */
+export function prepareDiffForSummarization(diff: string, config: Config): string {
+  const sanitized = sanitizeDiff(diff);
+  const chunks = splitDiffIntoFileChunks(sanitized);
+  const collapsedChunks = chunks.map(({ path, chunk }) => ({
+    path,
+    chunk: collapseImportLines(chunk, path, config),
+  }));
+  return collapsedChunks.length === 0 ? sanitized : collapsedChunks.map((c) => c.chunk).join("\n");
+}

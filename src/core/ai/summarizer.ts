@@ -1,4 +1,4 @@
-import type { CopilotClient } from "@github/copilot-sdk";
+import { approveAll, type CopilotClient } from "@github/copilot-sdk";
 import type { Config } from "@core/config";
 import { COPILOT_SESSION_TIMEOUT } from "@core/config";
 
@@ -37,6 +37,7 @@ export async function summarizeDiff(
   const session = await client.createSession({
     model: config.model,
     streaming: true,
+    onPermissionRequest: approveAll,
     systemMessage: {
       mode: "replace",
       content: getSummarizerSystemPrompt(maxSummaryChars),

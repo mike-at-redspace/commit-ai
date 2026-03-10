@@ -220,7 +220,7 @@ async function main(): Promise<void> {
       "Elevate low-priority files when fraction of changed lines in them exceeds this (0–1, default 0.8)"
     )
     .option("--no-import-collapse", "Disable collapsing of import lines in diffs")
-    .option("--model <name>", "Override Copilot model (e.g. grok-code-fast-1)")
+    .option("--model <name>", "Override Copilot model (e.g. gpt-5-mini)")
     .option(
       "--max-diff-length <n>",
       "Max diff length in characters before truncation (default from config)"

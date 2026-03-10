@@ -99,13 +99,15 @@ export const PROGRESS_STEP_LABELS: Record<string, string> = {
 
 /**
  * Default Copilot model name (overridable via config or COMMIT_AI_MODEL)
+ *
+ * March 2026 default focuses on strong speed/cost for general coding tasks.
  */
-export const DEFAULT_COPILOT_MODEL = "grok-code-fast-1";
+export const DEFAULT_COPILOT_MODEL = "gpt-5-mini";
 
 /**
  * Default premium model for "Retry with premium model" (overridable via config)
  */
-export const DEFAULT_PREMIUM_MODEL = "sonnet-3.5";
+export const DEFAULT_PREMIUM_MODEL = "gpt-5.3-codex";
 
 /**
  * Status text shown while committing

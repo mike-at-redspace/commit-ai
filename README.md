@@ -34,7 +34,6 @@ Interactive dashboard streams AI-generated message → choose **Commit**, **Rege
 
 <img width="724" height="603" alt="image" src="https://github.com/user-attachments/assets/a49eb302-4f75-4458-9074-0271c3952940" />
 
-
 ### Common Flags
 
 ```bash
@@ -74,8 +73,8 @@ Create `.commit-ai.json` in project root or home directory:
 
 ```json
 {
-  "model": "grok-code-fast-1",
-  "premiumModel": "sonnet-3.5",
+  "model": "gpt-5-mini",
+  "premiumModel": "gpt-5.3-codex",
   "conventionalCommit": true,
   "includeScope": true,
   "includeEmoji": false,
@@ -96,8 +95,8 @@ Create `.commit-ai.json` in project root or home directory:
 
 **Model Settings**
 
-- `model` — Default model (`grok-code-fast-1`)
-- `premiumModel` — Premium model (`sonnet-3.5`)
+- `model` — Default model (`gpt-5-mini`)
+- `premiumModel` — Premium model (`gpt-5.3-codex`)
 - `preferPremiumForLargeDiffs` — Auto-use premium for large diffs (default: `false`)
 
 **Message Format**

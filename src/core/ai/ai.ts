@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 import type { Config, GeneratedMessage, CommitContext, GenerateProgressPhase } from "@core/config";
 import { EMOJI_MAP, COPILOT_SESSION_TIMEOUT } from "@core/config";
 import { prepareDiffForSummarization, getSmartDiff } from "@core/git";
@@ -151,6 +151,7 @@ export class CommitGenerator {
         const tempSession = await this.client.createSession({
           model: modelOverride,
           streaming: true,
+          onPermissionRequest: approveAll,
           systemMessage: {
             mode: "replace",
             content: SYSTEM_PROMPT,
@@ -169,6 +170,7 @@ export class CommitGenerator {
         this.session = await this.client.createSession({
           model: config.model,
           streaming: true,
+          onPermissionRequest: approveAll,
           systemMessage: {
             mode: "replace",
             content: SYSTEM_PROMPT,

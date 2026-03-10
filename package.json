@@ -30,7 +30,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@github/copilot-sdk": "^0.1.19",
+    "@github/copilot-sdk": "0.1.33-unstable.1",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "ink": "^4.4.1",
@@ -48,9 +48,9 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.4.2",
+    "tsc-alias": "^1.8.10",
     "tsx": "^4.21.0",
     "typescript": "^5.9.0",
-    "tsc-alias": "^1.8.10",
     "typescript-eslint": "^8.15.0",
     "vitest": "^2.1.0"
   },

@@ -14,9 +14,9 @@ export interface GitDiff {
  * Configuration options for commit message generation.
  */
 export interface Config {
-  /** Copilot model name (e.g. grok-code-fast-1) */
+  /** Copilot model name (e.g. gpt-5-mini) */
   model: string;
-  /** Premium model for "Retry with premium model" (e.g. sonnet-3.5) */
+  /** Premium model for "Retry with premium model" (e.g. gpt-5.3-codex) */
   premiumModel?: string;
   /** Use conventional commit format (type(scope): subject) */
   conventionalCommit: boolean;
